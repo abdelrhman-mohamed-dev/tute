@@ -1,0 +1,360 @@
+/* The settings window: an ordinary window, dressed like the island. Slate
+   panels, bead-shaped buttons, and the jelly's colour for what's chosen. */
+
+@import "../styles/tokens.css";
+
+.settings-window {
+  --jelly: #c9dcf5;
+  --jelly-rgb: 201, 220, 245;
+  --tint-1: rgba(var(--jelly-rgb), 0.08);
+  --tint-2: rgba(var(--jelly-rgb), 0.16);
+  --tint-3: rgba(var(--jelly-rgb), 0.28);
+  --panel: var(--tile);
+  --line: var(--tile-edge);
+  --page: #0e1117;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body.settings-window {
+  min-height: 100vh;
+  background: var(--page);
+  color: var(--text);
+  font: 400 13px/1.45 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+#settings-root {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 22px 24px 32px;
+}
+
+h1 {
+  font: 600 17px var(--font);
+  letter-spacing: -0.01em;
+}
+
+h1 .version {
+  margin-left: 8px;
+  font: 400 12px var(--font);
+  color: var(--text-faint);
+}
+
+/* One panel per area. */
+section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+}
+
+section > h2 {
+  font: 600 13px var(--font);
+}
+
+.hint {
+  font: 400 12px var(--font);
+  color: var(--text-dim);
+}
+
+/* A setting: its name in a fixed column, then its controls. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.row.top {
+  align-items: flex-start;
+}
+
+.row > label {
+  min-width: 132px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.row.top > label {
+  padding-top: 6px;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* ── Controls ── */
+
+button {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: var(--bead);
+  background: var(--tint-1);
+  color: var(--text);
+  font: 500 12.5px var(--font);
+  cursor: default;
+  transition: background 0.14s, transform 0.08s;
+}
+
+button:hover:not(:disabled) {
+  background: var(--tint-2);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+button.primary {
+  background: var(--jelly);
+  color: var(--on-accent);
+}
+
+button.primary:hover:not(:disabled) {
+  background: #fff;
+}
+
+button.danger {
+  background: rgba(242, 82, 95, 0.16);
+  color: var(--danger-text);
+}
+
+button:disabled {
+  opacity: 0.45;
+}
+
+.switch {
+  position: relative;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.switch.on,
+.switch.on:hover:not(:disabled) {
+  background: var(--ok);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.18s var(--pop);
+}
+
+.switch.on::after {
+  transform: translateX(16px);
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 140px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+input[type="number"],
+input[type="text"],
+input[type="password"],
+select {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--well);
+  color: var(--text);
+  font: 400 12.5px var(--font);
+}
+
+input::placeholder {
+  color: var(--text-faint);
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--tint-3);
+}
+
+/* The menu is drawn by Windows: give it real colours, not white on white. */
+select option {
+  background-color: #1a1c20;
+  color: var(--text);
+}
+
+.path {
+  font: 400 11.5px var(--mono);
+  color: var(--text-dim);
+  word-break: break-all;
+  user-select: text;
+}
+
+/* A result line under a control: worked, or didn't. */
+.notice {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font: 400 12px var(--font);
+}
+
+.notice.ok {
+  background: rgba(54, 211, 154, 0.12);
+  color: #86efac;
+}
+
+.notice.err {
+  background: rgba(242, 82, 95, 0.14);
+  color: var(--danger-text);
+}
+
+/* ── The buddy: two live characters, the chosen one outlined ── */
+
+.buddy-tiles {
+  display: flex;
+  gap: 10px;
+}
+
+.buddy-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  width: 96px;
+  height: 104px;
+  padding: 0 0 8px;
+  border: 1px solid var(--well);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.18s, border-color 0.18s, transform 0.18s var(--pop);
+}
+
+.buddy-tile:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.buddy-tile.tute:hover,
+.buddy-tile.tute.on {
+  border-color: rgba(96, 165, 250, 0.6);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.buddy-tile.tutee:hover,
+.buddy-tile.tutee.on {
+  border-color: rgba(255, 92, 147, 0.6);
+  background: rgba(255, 92, 147, 0.12);
+}
+
+.buddy-tile.on {
+  border-width: 2px;
+}
+
+.buddy-preview {
+  display: block;
+  pointer-events: none;
+}
+
+.buddy-name {
+  font: 600 12.5px var(--font);
+}
+
+/* ── AI models: one card per provider, a dashed one to add another ── */
+
+.provider {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.provider.add {
+  border-style: dashed;
+}
+
+.provider-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.provider-name {
+  font: 600 13px var(--font);
+}
+
+.tag {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: 500 10.5px var(--font);
+  color: var(--text-dim);
+}
+
+.chips {
+  display: flex;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 10px;
+  border-radius: var(--bead-sm);
+  background: var(--tint-1);
+  font: 400 11.5px var(--mono);
+}
+
+.chip-x {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 16px;
+}
+
+.chip-x:hover:not(:disabled) {
+  background: rgba(242, 82, 95, 0.14);
+  color: var(--danger-text);
+}

@@ -1,0 +1,339 @@
+/* The pieces every view is made of: text, layout, buttons, chips, switches. */
+
+/* ── Text ── */
+
+.title {
+  font: 600 15px var(--font);
+}
+
+.sub {
+  font: 400 13px var(--font);
+  color: var(--text-dim);
+}
+
+.detail {
+  font: 400 12px var(--font);
+  color: var(--danger-text);
+}
+
+/* Small grey note beside a heading. */
+.dim-note {
+  font: 400 11px var(--font);
+  color: var(--text-dim);
+}
+
+/* "● tute  finished": a session's dot, its name, then what it's doing. */
+.who-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 400 12px var(--font);
+  color: var(--text-dim);
+}
+
+.who-row .n {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.code {
+  max-width: 100%;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: var(--well);
+  font: 400 12px var(--mono);
+  color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+}
+
+/* Long text (Claude's last reply, a permission message): two lines at most. */
+.clamp2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Layout ── */
+
+/* A view's body: the column of text beside the jelly. Its left inset (room
+   for the jelly) is set per view. */
+.stack {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  height: 100%;
+}
+
+.card {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.row,
+.actions {
+  display: flex;
+  align-items: center;
+}
+
+.row {
+  gap: 6px;
+}
+
+.actions {
+  gap: 8px;
+}
+
+.grow {
+  flex: 1 1 auto;
+}
+
+.dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+/* ── Buttons ── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: var(--bead);
+  font: 500 12.5px var(--font);
+  transition: transform 0.08s ease-out, background var(--quick);
+}
+
+.btn:active {
+  transform: scale(0.94);
+}
+
+.btn.primary {
+  background: var(--jelly);
+  color: var(--on-accent);
+}
+
+.btn.secondary {
+  background: var(--tint-2);
+  color: var(--text);
+}
+
+.btn.secondary:hover {
+  background: var(--tint-3);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+/* A keyboard hint inside a button. */
+.btn .kbd {
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 10.5px;
+  opacity: 0.5;
+}
+
+/* Just text. */
+.link-btn {
+  font: 500 11px var(--font);
+}
+
+/* Round, drop-shaped, solid: the chat's send button. */
+.send-btn {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--drop);
+  background: var(--jelly);
+  color: var(--on-accent);
+  transition: transform 0.08s ease-out;
+}
+
+.send-btn:active {
+  transform: scale(0.94);
+}
+
+.send-btn[disabled] {
+  opacity: 0.4;
+}
+
+/* ── Chips: small bead-shaped buttons and labels ── */
+
+.quick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--tint-2);
+  border-radius: var(--bead-sm);
+  background: var(--tint-1);
+  color: var(--text);
+  font: 500 11.5px var(--font);
+  white-space: nowrap;
+  transition: background var(--quick), border-color var(--quick), transform 0.08s ease-out;
+}
+
+.quick span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick:hover {
+  background: var(--tint-2);
+  border-color: var(--tint-4);
+}
+
+.quick:active {
+  transform: scale(0.96);
+}
+
+.quick.on {
+  border-color: var(--jelly);
+  background: var(--jelly);
+  color: var(--on-accent);
+}
+
+/* Not unlocked yet, but it can be tried on, so it still answers the mouse. */
+.quick.locked {
+  opacity: 0.45;
+}
+
+.quick.locked:hover {
+  opacity: 0.75;
+  border-color: var(--tint-2);
+  background: var(--tint-1);
+}
+
+.quick-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.quick-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+/* ── Switches and pickers ── */
+
+.switch {
+  position: relative;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.18s;
+}
+
+.switch.on {
+  background: var(--ok);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.18s var(--pop);
+}
+
+.switch.on::after {
+  transform: translateX(14px);
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 72px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* A row of choices; the chosen one is lit. */
+.seg {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.seg button {
+  padding: 3px 7px;
+  border-radius: 999px;
+  font: 400 11px var(--font);
+  color: var(--text-faint);
+}
+
+.seg button.on {
+  background: var(--tint-2);
+  color: var(--text);
+}
+
+/* Two halves, one lit: Fun / Focus. */
+.mode-seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--tint-1);
+}
+
+.mode-seg span {
+  padding: 2px 9px;
+  border-radius: 8px;
+  font: 500 11px var(--font);
+  color: var(--text-dim);
+  transition: background 0.14s ease-out, color 0.14s ease-out;
+}
+
+.mode-seg span.on {
+  background: var(--jelly);
+  color: var(--on-accent);
+}
+
+/* The model menu (chat and the gear view). */
+.model-pick {
+  max-width: 300px;
+  padding: 3px 8px;
+  border: 1px solid var(--well);
+  border-radius: 999px;
+  outline: none;
+  background: var(--well);
+  color: var(--text);
+  font: 500 11px var(--font);
+  color-scheme: dark;
+}
+
+.model-pick option {
+  background: #1a1c20;
+  color: var(--text);
+}

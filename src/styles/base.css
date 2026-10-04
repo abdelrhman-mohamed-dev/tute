@@ -1,0 +1,54 @@
+/* The island's page: reset, body, scrollbars. Tokens are in tokens.css. */
+
+@import "./tokens.css";
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: default;
+}
+
+/* `hidden` wins over any display a class sets. */
+[hidden] {
+  display: none !important;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+}
+
+/* Scrollbars: WebView2 would draw the classic Windows ones. */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: var(--tint-3, rgba(255, 255, 255, 0.2));
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}

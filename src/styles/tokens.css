@@ -1,0 +1,45 @@
+/* Tute's design tokens, shared by the island and the settings window.
+
+   Fixed colours (text levels, moods) and shapes live here. The accent follows
+   the jelly's colour: whoever uses it sets --jelly / --jelly-rgb and builds the
+   tints from them (the island in shell.css, the settings window in its own sheet). */
+
+:root {
+  color-scheme: dark;
+
+  --font: system-ui, "Segoe UI Variable Text", "Segoe UI", "Segoe UI Emoji", sans-serif;
+  --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+
+  /* Text, from brightest to faintest. */
+  --text: #f4f5f7;
+  --text-soft: #c7cad0;
+  --text-dim: #9499a2;
+  --text-faint: #6c717a;
+  --text-ghost: #555a63;
+
+  /* The tile. */
+  --tile: #161a22;
+  --tile-edge: rgba(255, 255, 255, 0.07);
+  --well: rgba(255, 255, 255, 0.06);
+
+  /* Moods and the two brands Tute talks to. */
+  --danger: #f2525f;
+  --danger-text: #ff8e98;
+  --ok: #36d39a;
+  --warn: #f6a62a;
+  --info: #26d0ec;
+  --linear: #5e6ad2;
+  --claude: #d97757;
+
+  /* Text on a solid accent. */
+  --on-accent: #13213a;
+
+  /* Shapes. A bead of jelly: round, one corner pinched. A drop: rounder on top. */
+  --bead: 14px 14px 14px 4px;
+  --bead-sm: 11px 11px 11px 4px;
+  --drop: 50% 50% 50% 50% / 58% 58% 42% 42%;
+
+  /* Motion: a soft overshoot for things that pop, a quick ease for the rest. */
+  --pop: cubic-bezier(0.3, 1.2, 0.4, 1);
+  --quick: 0.12s ease-out;
+}

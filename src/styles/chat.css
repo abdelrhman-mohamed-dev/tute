@@ -1,0 +1,140 @@
+/* The chat: model menu and Fun/Focus on top, the conversation, the input. */
+
+.chat-card {
+  overflow: hidden;
+}
+
+.chat-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  padding: 12px 16px 14px 84px;
+}
+
+.chat-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-new {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.chat-log {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 2px 0;
+  overflow-y: auto;
+}
+
+.chat-row {
+  display: flex;
+}
+
+.chat-row.user {
+  justify-content: flex-end;
+  padding-left: 32px;
+}
+
+/* Yours: a bead in the jelly's colour, pinched towards you. */
+.bubble {
+  padding: 6px 10px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--tint-3);
+  font: 400 12.5px var(--font);
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+/* Its answer: plain text, no bubble. */
+.reply {
+  padding-right: 8px;
+  font: 400 12.5px var(--font);
+  color: var(--text-soft);
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+/* Three dots bouncing while the answer is on its way. */
+.typing {
+  display: flex;
+  gap: 4px;
+  padding: 4px 2px;
+}
+
+.typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  animation: typing 0.9s ease-in-out infinite;
+}
+
+.typing i:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.typing i:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+@keyframes typing {
+  50% {
+    transform: scale(1.2);
+  }
+  0%,
+  100% {
+    transform: scale(0.6);
+  }
+}
+
+.chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--well);
+}
+
+.chat-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: 400 13px var(--font);
+  cursor: text;
+}
+
+.chat-input::placeholder {
+  color: var(--text-faint);
+}
+
+/* No model chosen yet: a hint and a way to set one up. */
+.chat-setup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: 400 12.5px var(--font);
+  color: var(--text-dim);
+}
+
+.chat-error {
+  padding: 5px 9px;
+  border-radius: 10px;
+  background: rgba(242, 82, 95, 0.12);
+  font: 400 12px var(--font);
+  color: var(--danger-text);
+  white-space: pre-wrap;
+  user-select: text;
+}

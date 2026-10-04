@@ -1,0 +1,222 @@
+/* The island itself: the tile, its layers, the bar's little extras, the
+   header of drop-shaped buttons and the views that swap inside it. Sizes and
+   corners are animated by island/shape.ts; only the look is here. */
+
+/* Hidden, only this thin strip is left at the top edge to wake the island. */
+#wake-strip {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  width: 240px;
+  height: 6px;
+  transform: translateX(-50%);
+}
+
+#island {
+  --jelly: #c9dcf5;
+  --jelly-rgb: 201, 220, 245;
+  /* The accent, in four strengths, from the jelly's own colour. */
+  --tint-1: rgba(var(--jelly-rgb), 0.08);
+  --tint-2: rgba(var(--jelly-rgb), 0.16);
+  --tint-3: rgba(var(--jelly-rgb), 0.28);
+  --tint-4: rgba(var(--jelly-rgb), 0.55);
+
+  position: absolute;
+  top: 0;
+  left: 50%;
+  background: var(--tile);
+  box-shadow: inset 0 0 0 1px var(--tile-edge);
+  will-change: width, height, transform;
+}
+
+#island-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+#bot-canvas,
+#greeting-canvas {
+  position: absolute;
+  pointer-events: none;
+}
+
+#bot-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(6px);
+  pointer-events: none;
+  transition: opacity 0.4s ease-in-out, background 0.4s ease-in-out;
+}
+
+/* Runs down along the bottom edge over the last seconds before it closes. */
+#countdown {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* The bar's 2×2 grid of other sessions, at its right end. */
+#mini-grid {
+  position: absolute;
+  display: grid;
+  grid-template-columns: 13px 13px;
+  grid-auto-rows: 13px;
+  gap: 3px;
+  width: 29px;
+  height: 29px;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+}
+
+/* A mini jelly: the slot is its body; the canvas is bigger and spills over,
+   so badges and sparkles aren't clipped. */
+.mini {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.mini canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* ── Open ── */
+
+#content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 10px;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* A row of little drops at the top right: the tabs, then bond, settings, sound. */
+#header {
+  display: flex;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 34px;
+  margin: 0 -10px;
+  padding-right: 14px;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.tabs,
+.header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.tab,
+.header-actions button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 27px;
+  border-radius: var(--drop);
+  background: var(--tint-2);
+  color: rgba(242, 246, 253, 0.7);
+  transition: background 0.15s ease-out, transform var(--quick);
+}
+
+.tab:hover,
+.header-actions button:hover {
+  background: var(--tint-3);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.tab.on,
+.header-actions button.on {
+  background: var(--tint-4);
+  color: #fff;
+}
+
+#views {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Views cross-fade: the old one fades out, then the new one pops in. */
+.view {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: scale(0.97);
+  pointer-events: none;
+  transition: opacity 0.16s ease-in;
+}
+
+.view.on {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition: opacity 0.3s ease-out 0.16s, transform 0.3s var(--pop) 0.16s;
+}
+
+/* ── The file drop ──
+   Its canvas (upload/canvas.ts) takes over the body under the header and
+   fades in and out over the views. */
+
+#upload-layer {
+  position: absolute;
+  top: 0;
+  width: 640px;
+  height: 176px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease-in-out;
+  /* Over #content, or the views would catch the clicks meant for its buttons. */
+  z-index: 2;
+}
+
+#upload-layer.on {
+  opacity: 1;
+}
+
+#upload-canvas,
+#upload-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+#upload-overlay {
+  display: none;
+}
+
+/* Once the drop is over its buttons go too, or they'd linger unseen but clickable. */
+#upload-layer:not(.on) #upload-overlay {
+  display: none !important;
+}
+
+/* Clickable spots over the buttons the canvas paints. */
+.upload-hit {
+  position: absolute;
+  border-radius: 13px;
+  pointer-events: auto;
+}
+
+#views.hidden-by-upload,
+#views.hidden-by-upload .view {
+  pointer-events: none;
+}
+
+#views.hidden-by-upload {
+  opacity: 0;
+  transition: opacity 0.22s ease-in-out;
+}

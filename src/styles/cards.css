@@ -1,0 +1,617 @@
+/* The cards that come and go: Claude's questions, Linear, the bond, the
+   first-launch picker, the gear view and the file-drop fallbacks. */
+
+/* ── Ask: a Claude question or permission prompt ── */
+
+.ask-stack {
+  gap: 7px;
+  padding: 2px 16px 10px 104px;
+}
+
+/* Nothing may be squeezed out of the card, the question least of all. */
+.ask-stack > *,
+.lin-stack > *,
+.lin-new > *,
+.bond-stack > * {
+  flex-shrink: 0;
+}
+
+.ask-title {
+  font-size: 14px;
+}
+
+.ask-chip,
+.lin-chip {
+  border-radius: 8px;
+  background: var(--tint-2);
+  color: var(--text);
+}
+
+.ask-chip {
+  padding: 1px 7px;
+  font: 500 10.5px var(--font);
+}
+
+.ask-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.ask-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--tint-2);
+  border-radius: 12px 12px 12px 4px;
+  background: var(--tint-1);
+  text-align: left;
+  transition: background var(--quick), border-color var(--quick), transform 0.08s ease-out;
+}
+
+.ask-option:hover {
+  border-color: var(--tint-4);
+  background: var(--tint-2);
+}
+
+.ask-option:active {
+  transform: scale(0.97);
+}
+
+.ask-option.on {
+  border-color: var(--jelly);
+  background: var(--tint-3);
+}
+
+.ask-option .l {
+  font: 500 12.5px var(--font);
+}
+
+.ask-option .d {
+  max-width: 100%;
+  font: 400 11px var(--font);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The command or file a permission is about. */
+.ask-detail {
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--well);
+  font: 400 12px var(--mono);
+  word-break: break-all;
+}
+
+.ask-terminal {
+  color: var(--text-dim);
+}
+
+.ask-terminal:hover {
+  color: var(--text);
+}
+
+.ask-more {
+  font: 400 11px var(--font);
+  color: var(--text-faint);
+}
+
+/* ── Linear: My issues, New issue, Do it with Claude ── */
+
+.lin-stack {
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 12px 16px 10px 100px;
+}
+
+.lin-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.lin-title {
+  font: 600 14px var(--font);
+}
+
+.lin-list {
+  display: flex;
+  flex: 1 1 auto !important;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.lin-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 10px;
+  transition: background var(--quick);
+}
+
+.lin-row:hover,
+.lin-row.on {
+  background: var(--tint-1);
+}
+
+/* The issue's state: a ring in its workflow colour. */
+.lin-status {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid;
+  border-radius: 50%;
+}
+
+.lin-id {
+  flex: 0 0 64px;
+  font: 500 11px var(--mono);
+  color: var(--text-dim);
+}
+
+.lin-text,
+.lin-result {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lin-text {
+  flex: 1 1 auto;
+  font: 400 12.5px var(--font);
+}
+
+.lin-chip {
+  flex: 0 0 auto;
+  max-width: 110px;
+  padding: 2px 8px;
+  font: 400 10.5px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lin-acts,
+.lin-chips,
+.lin-foot {
+  display: flex;
+  align-items: center;
+}
+
+.lin-acts {
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.lin-act {
+  padding: 3px 9px;
+  font-size: 11px;
+}
+
+.lin-empty {
+  padding: 18px 10px;
+  font: 400 12.5px var(--font);
+  color: var(--text-dim);
+}
+
+.lin-foot {
+  gap: 6px;
+  min-height: 24px;
+}
+
+.lin-chips {
+  gap: 6px;
+  min-width: 0;
+}
+
+.lin-undo,
+.lin-created {
+  color: var(--jelly);
+}
+
+.lin-undo:hover,
+.lin-created:hover {
+  text-decoration: underline;
+}
+
+.lin-err {
+  color: var(--danger-text);
+}
+
+.lin-new {
+  gap: 9px;
+  padding: 0 16px 0 100px;
+}
+
+.lin-field {
+  padding: 8px 12px;
+  border: 1px solid var(--tint-3);
+  border-radius: 12px 12px 12px 4px;
+}
+
+/* Do it with Claude: a box in Claude's clay colour. */
+.claude-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(217, 119, 87, 0.35);
+  border-radius: 12px;
+  background: rgba(217, 119, 87, 0.1);
+}
+
+.claude-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.claude-line .bond-label {
+  flex: 0 0 62px;
+  width: 62px;
+}
+
+.lin-folder {
+  max-width: 300px;
+}
+
+.btn.lin-start {
+  background: var(--claude);
+  color: #fff;
+}
+
+.quick.lin-claude {
+  background: rgba(217, 119, 87, 0.22);
+  color: #ffd9cb;
+}
+
+/* ── Bond: the level-up card and the bond page ── */
+
+.lvl-stack {
+  gap: 7px;
+  padding: 0 18px 0 128px;
+}
+
+.view.on .lvl-stack {
+  animation: lvl-pop 0.6s ease-out both;
+}
+
+@keyframes lvl-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.lvl-head,
+.bond-row {
+  display: flex;
+  align-items: center;
+}
+
+.lvl-head {
+  gap: 8px;
+}
+
+.lvl-badge {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--jelly);
+  color: var(--on-accent);
+  font: 700 10.5px var(--font);
+  letter-spacing: 0.04em;
+}
+
+.lvl-name {
+  font: 600 15px var(--font);
+}
+
+.lvl-text {
+  font: 400 12.5px var(--font);
+  color: var(--text-soft);
+}
+
+.lvl-text b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Confetti over the jelly: two falls, then still for good. */
+.confetti {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 170px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.confetti i {
+  position: absolute;
+  top: -12px;
+  width: 6px;
+  height: 9px;
+  border-radius: 2px;
+  opacity: 0;
+}
+
+.view.on .confetti i {
+  animation: confetti 1.9s linear 2 both;
+}
+
+@keyframes confetti {
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(150px) rotate(260deg);
+  }
+}
+
+.bond-stack {
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 10px 16px 10px 100px;
+}
+
+.bond-bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--tint-1);
+}
+
+.bond-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--jelly);
+  transition: width 0.6s var(--pop);
+}
+
+.bond-levels {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+}
+
+.bond-lv {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 76px;
+  border-radius: 8px;
+  font: 400 10px var(--font);
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.bond-lv b {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--tint-1);
+  color: var(--text-dim);
+  font: 600 10.5px var(--font);
+}
+
+.bond-lv .u {
+  color: var(--text-ghost);
+}
+
+.bond-lv.done {
+  color: var(--text);
+}
+
+.bond-lv.done b {
+  background: var(--jelly);
+  color: var(--on-accent);
+}
+
+.bond-lv.next b {
+  border: 1.5px dashed var(--jelly);
+  background: transparent;
+  color: var(--text);
+}
+
+/* A level whose reward can be played on the spot (the twirl). */
+.bond-lv.tryable:hover {
+  background: var(--tint-1);
+}
+
+.bond-row {
+  gap: 5px;
+}
+
+.bond-label {
+  width: 44px;
+  font: 500 11px var(--font);
+  color: var(--text-dim);
+}
+
+/* ── First launch: pick a character ── */
+
+.persona-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 18px 0 28px;
+}
+
+.persona-intro {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.persona-tiles {
+  display: flex;
+  gap: 10px;
+}
+
+.persona {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  width: 100px;
+  height: 104px;
+  padding-bottom: 7px;
+  border: 1px solid var(--well);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.18s, border-color 0.18s, transform 0.18s var(--pop);
+}
+
+.persona:hover {
+  transform: translateY(-2px);
+}
+
+.persona:active {
+  transform: scale(0.96);
+}
+
+.persona.tute:hover {
+  border-color: rgba(96, 165, 250, 0.55);
+  background: rgba(96, 165, 250, 0.14);
+}
+
+.persona.tutee:hover {
+  border-color: rgba(255, 92, 147, 0.55);
+  background: rgba(255, 92, 147, 0.14);
+}
+
+.persona-name {
+  font: 600 12.5px var(--font);
+}
+
+.buddy-preview {
+  display: block;
+  pointer-events: none;
+}
+
+/* ── The gear view ── */
+
+.settings-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 400 12.5px var(--font);
+  color: var(--text-soft);
+}
+
+/* The model menu takes what's left of its row. */
+.settings-row .model-pick {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+/* A character choice, with a tiny live one inside. */
+.seg button.buddy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 9px 0 3px;
+}
+
+.seg button.buddy-btn canvas {
+  margin-top: -6px; /* the canvas's headroom for the bow and the tuft */
+}
+
+/* ── File drop, when its canvas isn't drawing ── */
+
+.drop-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  height: 100%;
+  padding-left: 226px;
+}
+
+.drop-title {
+  font: 600 15px var(--font);
+}
+
+.drop-sub {
+  font: 400 12.5px var(--font);
+  color: var(--text-soft);
+}
+
+.up-row,
+.up-track {
+  position: absolute;
+  left: 26px;
+  width: 526px;
+}
+
+.up-row {
+  top: 36px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font: 400 12.5px var(--font);
+  color: var(--text-dim);
+}
+
+.up-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.up-name.done {
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.up-pct {
+  flex: 0 0 auto;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.up-track {
+  top: 58px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--well);
+}
+
+.up-fill {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ok);
+}
