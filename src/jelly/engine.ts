@@ -177,6 +177,12 @@ export class JellyEngine {
   private arms = 0; // 0…1, raised in a stretch
   private armsTarget = 0;
 
+  // The phone (a Telegram chat): pops out buzzing, it reads, thumbs tap, it sends.
+  private phone = new Spring(0, 260, 13); // 0 put away … 1 in its hands
+  private phoneMode: "read" | "type" | null = null;
+  private phoneBuzzUntil = 0;
+  private phoneSince = 0;
+
   // Colour, badge, effects.
   private color: RGB = HUE.idle;
   private tint = 0;
@@ -405,6 +411,45 @@ export class JellyEngine {
     this.later(0.5, () => this.burst("heart", 3));
   }
 
+  // ── The phone ──────────────────────────────────────────────────────────────
+
+  /** A message came in: the phone pops out buzzing, and it looks down to read. */
+  phoneIn() {
+    this.phone.target = 1;
+    this.phone.kick(2);
+    this.phoneMode = "read";
+    this.phoneSince = now();
+    this.phoneBuzzUntil = now() + 0.45;
+    this.eyesFor("wide", 0.4);
+    this.squash.kick(2.5);
+  }
+
+  /** It's writing back: thumbs tap and a typing badge shows, until `phoneSent`. */
+  phoneTyping() {
+    if (!this.phoneMode) this.phoneIn();
+    this.phoneMode = "type";
+    this.phoneSince = now();
+    this.setBadge(badge("dots", HUE.question));
+  }
+
+  /** Sent: a little flick up, a twinkle, a happy face, and the phone goes away. */
+  phoneSent() {
+    if (!this.phoneMode) return;
+    this.phoneMode = null;
+    this.setBadge(this.mood.badge);
+    this.phone.kick(-3);
+    this.burst("spark", 2);
+    this.eyesFor("happy", 0.9);
+    this.later(0.25, () => { this.phone.target = 0; });
+  }
+
+  /** Put the phone away without sending (the chat was dropped). */
+  phoneAway() {
+    this.phoneMode = null;
+    this.setBadge(this.mood.badge);
+    this.phone.target = 0;
+  }
+
   // ── Expressions ────────────────────────────────────────────────────────────
 
   /** A short expression: the eyes change, with a matching little move. */
@@ -498,6 +543,7 @@ export class JellyEngine {
       !this.eyes.resting ||
       Math.abs(this.blush - this.blushTarget) > 0.01 ||
       Math.abs(this.arms - this.armsTarget) > 0.01 ||
+      this.phoneMode !== null || !this.phone.resting || this.phone.value > 0.01 ||
       this.badgePop < 0.99 ||
       Math.abs(this.tint - this.mood.tint) > 0.005 ||
       this.color.some((c, i) => Math.abs(c - this.mood.color[i]) > 0.004) ||
@@ -566,7 +612,8 @@ export class JellyEngine {
       }
     }
 
-    for (const s of [this.squash, this.lean, this.shift, this.eyes]) s.step(dt);
+    for (const s of [this.squash, this.lean, this.shift, this.eyes, this.phone]) s.step(dt);
+    if (this.phone.target === 0 && this.phone.value < 0) this.phone.value = this.phone.velocity = 0;
 
     // Face.
     if (t > this.nextBlink) {
@@ -604,6 +651,12 @@ export class JellyEngine {
   /** Where the eyes look, −1…1: a fidget, the mood, a wandering mini, or the cursor. */
   private gazeNow(life: number): { x: number; y: number } {
     if (this.gaze) return this.gaze;
+    // Reading or typing: eyes down on the screen, with a little left-right read.
+    if (this.phoneMode) {
+      return this.phoneMode === "read"
+        ? { x: Math.sin(life * 5) * 0.3, y: -0.8 }
+        : { x: Math.sin(life * 1.7) * 0.15, y: -0.85 };
+    }
     switch (this.mood.motion) {
       case "scan":
         return { x: Math.sin(life * 2.6) * 0.9, y: 0.1 };
@@ -673,8 +726,10 @@ export class JellyEngine {
     x.clip(body);
     this.drawCheeks(x, R, gaze);
     this.drawEyes(x, R, gaze, life);
+    if (this.phone.value > 0.05) this.drawScreenGlow(x, R);
     x.restore();
 
+    if (this.phone.value > 0.02) this.drawPhone(x, R, look, life);
     if (this.look) drawAccessory(x, this.look, R, accRy, "front", accShift);
     x.restore();
 
@@ -694,7 +749,8 @@ export class JellyEngine {
     const since = now() - this.blinkAt;
     const lid = since < 0.22 ? Math.max(0.08, Math.abs(1 - since / 0.11)) : 1;
     const gx = gaze.x * R * 0.15;
-    const gy = -gaze.y * R * 0.09;
+    // Looking down at the phone drops the eyes further than the cursor can.
+    const gy = -gaze.y * R * 0.09 + Math.min(1, Math.max(0, this.phone.value)) * R * 0.07;
     for (const side of [-1, 1]) {
       // The eye on the side it looks towards gets a bit closer, the other a bit narrower.
       const near = 1 + side * gaze.x * 0.06;
@@ -720,6 +776,95 @@ export class JellyEngine {
       x.ellipse(side * R * 0.62 + gaze.x * R * 0.1, R * 0.12, R * 0.16, R * 0.09, 0, 0, Math.PI * 2);
       x.fill();
     }
+  }
+
+  /** The phone's light on the lower face. */
+  private drawScreenGlow(x: CanvasRenderingContext2D, R: number) {
+    const k = Math.min(1, this.phone.value);
+    const g = x.createRadialGradient(0, R * 0.25, 0, 0, R * 0.25, R * 0.7);
+    g.addColorStop(0, `rgba(120,190,255,${0.32 * k})`);
+    g.addColorStop(1, "rgba(120,190,255,0)");
+    x.fillStyle = g;
+    x.fillRect(-R, -R * 0.5, R * 2, R * 1.2);
+  }
+
+  /**
+   * A little phone held in front of the body by two jelly hands. Reading: a
+   * message bubble slides in. Typing: the thumbs tap in turn and a draft line
+   * grows at the bottom of the screen.
+   */
+  private drawPhone(x: CanvasRenderingContext2D, R: number, look: Look, life: number) {
+    const t = now();
+    const s = Math.max(0, this.phone.value);
+    const buzz = t < this.phoneBuzzUntil ? Math.sin(t * 95) * R * 0.035 : 0;
+    const typing = this.phoneMode === "type";
+    const since = t - this.phoneSince;
+    const w = R * 0.66, hgt = R * 0.86, rad = R * 0.12;
+
+    x.save();
+    // Held low in front, tipped back towards the face.
+    x.translate(R * 0.02 + buzz, R * 0.5 + (1 - Math.min(1, s)) * R * 0.4);
+    x.rotate(-0.08 + (typing ? Math.sin(life * 3) * 0.025 : 0));
+    x.scale(s, s);
+
+    // The phone: a dark frame, a bright chat screen (it has to read at island size).
+    x.beginPath();
+    x.roundRect(-w / 2, -hgt / 2, w, hgt, rad);
+    x.fillStyle = "#151a24";
+    x.fill();
+    x.lineWidth = Math.max(0.8, R * 0.025);
+    x.strokeStyle = "rgba(255,255,255,0.4)";
+    x.stroke();
+    const inset = R * 0.04;
+    const sw = w - inset * 2, sh = hgt - inset * 2;
+    x.beginPath();
+    x.roundRect(-sw / 2, -sh / 2, sw, sh, rad * 0.65);
+    x.fillStyle = "#dbe8f2";
+    x.fill();
+    x.save();
+    x.clip();
+    // Header strip.
+    x.fillStyle = "#2aabee";
+    x.fillRect(-sw / 2, -sh / 2, sw, sh * 0.17);
+    // The chat: their bubbles on the left (slide in on arrival), ours on the right.
+    const bubble = (bx: number, by: number, bw: number, color: string) => {
+      x.beginPath();
+      x.roundRect(bx, by, bw, sh * 0.12, sh * 0.06);
+      x.fillStyle = color;
+      x.fill();
+    };
+    const pad = sw * 0.08;
+    const slide = 1 - Math.pow(1 - Math.min(1, since / 0.35), 3);
+    bubble(-sw / 2 + pad - (1 - slide) * sw, -sh * 0.24, sw * 0.62, "#ffffff");
+    bubble(-sw / 2 + pad - (1 - slide) * sw, -sh * 0.07, sw * 0.42, "#ffffff");
+    if (typing) {
+      // Our answer grows, sends, grows again: thumbs at work.
+      const grow = (since * 0.6) % 1;
+      bubble(sw / 2 - pad - sw * 0.7 * grow, sh * 0.12, sw * 0.7 * grow, "#8fdc7a");
+    }
+    x.restore();
+
+    // Two jelly hands round the lower corners; while typing the thumbs tap in turn.
+    for (const side of [-1, 1]) {
+      const tap = typing ? Math.max(0, Math.sin(life * 15 + (side > 0 ? Math.PI : 0))) : 0;
+      x.save();
+      x.translate(side * w * 0.5, hgt * 0.32);
+      x.beginPath();
+      x.ellipse(0, 0, R * 0.13, R * 0.17, side * 0.35, 0, Math.PI * 2);
+      x.fillStyle = `rgba(${look.rgb},0.9)`;
+      x.fill();
+      x.strokeStyle = look.body;
+      x.lineWidth = Math.max(0.8, R * 0.035);
+      x.stroke();
+      // The thumb: just over the screen's bottom corner, pressing in on a tap.
+      x.translate(-side * (R * 0.1 + tap * R * 0.05), -R * 0.1 - tap * R * 0.04);
+      x.beginPath();
+      x.ellipse(0, 0, R * 0.06, R * 0.08, -side * 0.7, 0, Math.PI * 2);
+      x.fill();
+      x.stroke();
+      x.restore();
+    }
+    x.restore();
   }
 
   /** Two little jelly arms, raised in a stretch. */

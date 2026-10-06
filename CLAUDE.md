@@ -10,7 +10,9 @@ Tute is a Windows desktop app: a small animated island at the top of the screen
   can ask for). `src/views/` holds the views.
 - `src-tauri/src/` — Rust: the window (`island.rs`), displays (`display.rs`), the
   cursor watcher and click-through (`watch.rs`), file drop (`catcher.rs`, `inbox.rs`),
-  Claude Code (`claude.rs`, `agent.rs`), Linear (`linear.rs`), settings, tray, log.
+  Claude Code (`claude.rs`, `agent.rs`), Linear (`linear.rs`), Obsidian (`obsidian.rs`),
+  browsing (`browse.rs`, the AI loop; `browser.rs`, the link to the extension in
+  `extension/`), settings, tray, log.
 
 ## Build
 ```

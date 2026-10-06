@@ -1,6 +1,6 @@
 [package]
 name = "tute"
-description = "Tute for Windows — a little island at the top of your screen"
+description = "Tute for Windows — a jelly at the top of your screen that keeps you company"
 authors = ["Abdelrhman Mohamed"]
 version.workspace = true
 edition.workspace = true

@@ -1,41 +1,37 @@
-// Copies the installer Tauri buries in target/release/bundle/nsis/ into
-// release/, with the name it ships under. Used by `npm run pack` and by
-// the release workflow, so both produce exactly the same file names.
+// `npm run pack`, after `tauri build`: takes the newest installer out of
+// target/release/bundle/nsis/ and puts it in release/ twice, as
+// Tute-Windows-<version>-setup.exe and as Tute-Windows-setup.exe (the name a
+// "latest" download link can point at).
 
-import { readFileSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const bundleDir = join(root, "target", "release", "bundle", "nsis");
-const outDir = join(root, "release");
+const project = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const built = join(project, "target", "release", "bundle", "nsis");
+const release = join(project, "release");
 
-const { version } = JSON.parse(readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"));
-
-let installers = [];
-try {
-  installers = readdirSync(bundleDir).filter((f) => f.endsWith("-setup.exe"));
-} catch {
-  console.error(`No installer in ${bundleDir} — run \`npm run tauri build\` first.`);
-  process.exit(1);
+function newestInstaller() {
+  let names = [];
+  try {
+    names = readdirSync(built).filter((name) => name.endsWith("-setup.exe"));
+  } catch {
+    // No folder yet: same answer as an empty one.
+  }
+  if (!names.length) {
+    console.error(`No installer in ${built}. Run \`npm run tauri build\` first.`);
+    process.exit(1);
+  }
+  const age = (name) => statSync(join(built, name)).mtimeMs;
+  return join(built, names.sort((a, b) => age(b) - age(a))[0]);
 }
-if (installers.length === 0) {
-  console.error(`No installer in ${bundleDir} — run \`npm run tauri build\` first.`);
-  process.exit(1);
-}
 
-// Newest wins, in case an older build is still lying around.
-const built = installers
-  .map((f) => join(bundleDir, f))
-  .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
+const { version } = JSON.parse(readFileSync(join(project, "src-tauri", "tauri.conf.json"), "utf8"));
+const installer = newestInstaller();
+const copies = [`Tute-Windows-${version}-setup.exe`, "Tute-Windows-setup.exe"].map((name) => join(release, name));
 
-mkdirSync(outDir, { recursive: true });
-const versioned = join(outDir, `Tute-Windows-${version}-setup.exe`);
-const rolling = join(outDir, "Tute-Windows-setup.exe");
-copyFileSync(built, versioned);
-copyFileSync(built, rolling);
+mkdirSync(release, { recursive: true });
+for (const copy of copies) copyFileSync(installer, copy);
 
-const mb = (statSync(versioned).size / 1024 / 1024).toFixed(2);
-console.log(`\n  Installer ready — ${mb} MB\n`);
-console.log(`  ${versioned}`);
-console.log(`  ${rolling}\n`);
+const size = (statSync(copies[0]).size / 2 ** 20).toFixed(2);
+console.log(`\n  Installer ready (${size} MB)\n\n  ${copies.join("\n  ")}\n`);

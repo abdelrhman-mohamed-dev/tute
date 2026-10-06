@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Tute",
+  "version": "0.1.0",
+  "description": "Lets Tute, the jelly on your screen, browse for you: it opens and reads pages in a Tute tab group. Talks only to Tute on this PC.",
+  "background": { "service_worker": "background.js" },
+  "permissions": ["tabs", "tabGroups", "scripting", "search", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "icons": { "128": "icon.png" }
+}

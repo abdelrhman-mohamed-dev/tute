@@ -108,11 +108,11 @@ struct Tokens {
 }
 
 fn load() -> Option<Tokens> {
-    serde_json::from_str(&secrets::service_get(SECRET)?).ok()
+    serde_json::from_str(&secrets::read(secrets::Slot::Login(SECRET))?).ok()
 }
 
 fn store(t: &Tokens) -> Result<(), String> {
-    secrets::service_set(SECRET, &serde_json::to_string(t).map_err(|e| e.to_string())?)
+    secrets::write(secrets::Slot::Login(SECRET), &serde_json::to_string(t).map_err(|e| e.to_string())?)
 }
 
 /// What the front end may know: whether, and as whom.
@@ -681,7 +681,7 @@ pub async fn disconnect(app: &AppHandle) -> Result<(), String> {
                 .await;
         }
     }
-    secrets::service_clear(SECRET)?;
+    secrets::forget(secrets::Slot::Login(SECRET))?;
     *PENDING.lock().unwrap() = None;
     log::line("linear: disconnected");
     announce(app);

@@ -136,7 +136,11 @@ export class Island {
     this.greetingCanvas.height = Math.round(150 * dpr);
     this.greetingCanvas.style.width = `${EXPANDED_W}px`;
     this.greetingCanvas.style.height = "150px";
-    this.dropCanvas = new UploadCanvas({ primary: () => this.drop.keep(), cancel: () => this.drop.cancel() });
+    this.dropCanvas = new UploadCanvas({
+      obsidian: () => this.drop.toObsidian(),
+      keep: () => this.drop.keep(),
+      cancel: () => this.drop.cancel(),
+    });
 
     this.minis = h("div", { id: "mini-grid" });
     this.countdown = h("div", { id: "countdown" });

@@ -2,7 +2,7 @@
 // answer ends up here. Kept apart from the controller so island.ts is only
 // about modes, views and frames.
 
-import { Bridge, LinearBridge } from "../core/bridge";
+import { BrowseBridge, Bridge, LinearBridge, ObsidianBridge } from "../core/bridge";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
 import type { Skin } from "../jelly/looks";
@@ -15,6 +15,18 @@ import { linearActions } from "./linear";
 function save() {
   void Bridge.saveSettings(State.settings);
   State.notify();
+}
+
+/** Opens the settings window on one of its pages (it follows this key, see settings/main.ts). */
+function openSettingsAt(page: string) {
+  try {
+    // Cleared first, so the other window hears it even if it already said this page.
+    localStorage.removeItem("tute.settingsPage");
+    localStorage.setItem("tute.settingsPage", page);
+  } catch {
+    // It opens on the page it was on.
+  }
+  void Bridge.openSettingsWindow();
 }
 
 export function islandActions(island: Island): ViewActions {
@@ -131,5 +143,36 @@ export function islandActions(island: Island): ViewActions {
       });
     },
     linear: linearActions(island),
+
+    // ── Obsidian ──
+    obsidianAction: async () => {
+      Sound.play("blip");
+      if (State.settings.obsidianVault) {
+        island.setView("obsidian");
+        return;
+      }
+      // One vault on this PC: that's the one. Otherwise Settings asks which.
+      const vaults = (await ObsidianBridge.vaults()) ?? [];
+      if (vaults.length === 1) {
+        State.settings.obsidianVault = vaults[0].path;
+        save();
+        Sound.play("approve");
+        engine.triggerEmote("happy");
+        island.setView("obsidian");
+        return;
+      }
+      openSettingsAt("connections");
+    },
+    saveToObsidian: () => island.drop.toObsidian(),
+
+    // ── Browsing ──
+    browseWatch: (id) => {
+      Sound.play("blip");
+      BrowseBridge.watch(id).catch((err) => island.note(String(err).replace(/^Error:\s*/, ""), 2800));
+    },
+    browseStop: (id) => {
+      Sound.play("blip");
+      void BrowseBridge.stop(id);
+    },
   };
 }

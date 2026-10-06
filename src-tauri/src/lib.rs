@@ -2,6 +2,8 @@
 
 mod agent;
 mod ai;
+mod browse;
+mod browser;
 mod catcher;
 mod claude;
 mod display;
@@ -9,6 +11,8 @@ mod inbox;
 mod island;
 mod linear;
 mod log;
+mod memory;
+mod obsidian;
 mod secrets;
 mod settings;
 mod tray;
@@ -172,18 +176,18 @@ fn provider(shared: &State<'_, Shared>, provider_id: &str) -> Result<settings::P
 /// Stores a provider's key in the Credential Manager. Empty removes it.
 #[tauri::command]
 fn provider_key_set(provider_id: String, key: String) -> Result<(), String> {
-    secrets::set(&provider_id, &key)
+    secrets::write(secrets::Slot::Key(&provider_id), &key)
 }
 
 /// The page may only ask whether a key exists — it can never read one.
 #[tauri::command]
 fn provider_key_present(provider_id: String) -> bool {
-    secrets::present(&provider_id)
+    secrets::holds(secrets::Slot::Key(&provider_id))
 }
 
 #[tauri::command]
 fn provider_key_clear(provider_id: String) -> Result<(), String> {
-    secrets::clear(&provider_id)
+    secrets::forget(secrets::Slot::Key(&provider_id))
 }
 
 #[tauri::command]
@@ -259,12 +263,13 @@ async fn ai_chat(
     shared: State<'_, Shared>,
     request_id: u64,
     messages: Vec<ChatTurn>,
-) -> Result<String, String> {
-    let (active, personality, chat_mode) = {
+    web: bool,
+) -> Result<ChatAnswer, String> {
+    let (active, personality, chat_mode, memory_on) = {
         let s = shared.settings.lock().unwrap();
-        (s.active_model.clone(), s.personality.clone(), s.chat_mode.clone())
+        (s.active_model.clone(), s.personality.clone(), s.chat_mode.clone(), s.memory_on)
     };
-    let active = active.ok_or_else(|| "Choose a model first (Settings → AI models).".to_string())?;
+    let active = active.ok_or_else(|| "Choose a model first (Settings → Chat models).".to_string())?;
     let p = provider(&shared, &active.provider_id)?;
 
     // Only plain user/assistant turns, ending with the user's.
@@ -278,9 +283,35 @@ async fn ai_chat(
         return Err("Nothing to send.".into());
     }
 
-    let system = chat_system_prompt(personality.as_deref() == Some("tutee"), chat_mode == "focus");
-
+    let mut system = chat_system_prompt(personality.as_deref() == Some("tutee"), chat_mode == "focus");
+    // What it remembers, and how to remember more (memory.rs).
+    let known = if memory_on { memory::memories() } else { Vec::new() };
+    if memory_on {
+        system.push_str(&memory::for_model(&known));
+        system.push_str(memory::MEMORY_RULES);
+    }
     let started = std::time::Instant::now();
+
+    // With the browser extension there, the model may browse (browse.rs). The
+    // answer arrives whole, as one piece, once it's done.
+    if web && browser::connected() {
+        let history = turns.iter().map(|t| serde_json::json!({ "role": t.role, "content": t.text })).collect();
+        let system = format!("{system}{}", browse::WEB_RULES);
+        let result = browse::chat(&app, &p, &active.model, &system, history, request_id).await;
+        return match result {
+            Ok((text, sources)) => {
+                log::line(format!("ai: chat {} / {} with {} page(s) in {} ms", p.name, active.model, sources.len(), started.elapsed().as_millis()));
+                let answer = finish_answer(&text, sources, &known, memory_on);
+                let _ = app.emit_to(island::WINDOW_LABEL, "chat-delta", ChatDelta { request_id, text: answer.text.clone() });
+                Ok(answer)
+            }
+            Err(e) => {
+                log::line(format!("ai: chat {} / {} failed: {e}", p.name, active.model));
+                Err(e)
+            }
+        };
+    }
+
     let result = ai::stream(&p, &active.model, Some(&system), turns, |text| {
         let _ = app.emit_to(
             island::WINDOW_LABEL,
@@ -293,7 +324,81 @@ async fn ai_chat(
         Ok(_) => log::line(format!("ai: chat {} / {} in {} ms", p.name, active.model, started.elapsed().as_millis())),
         Err(e) => log::line(format!("ai: chat {} / {} failed: {e}", p.name, active.model)),
     }
-    result
+    result.map(|text| finish_answer(&text, Vec::new(), &known, memory_on))
+}
+
+/// A chat answer: its text (hidden notes cut out), the pages it read if it
+/// browsed, what it just remembered, and which memories it used.
+#[derive(Serialize)]
+struct ChatAnswer {
+    text: String,
+    sources: Vec<browse::Source>,
+    remembered: Vec<memory::Memory>,
+    used: Vec<String>,
+}
+
+fn finish_answer(reply: &str, sources: Vec<browse::Source>, known: &[memory::Memory], memory_on: bool) -> ChatAnswer {
+    let (text, notes) = memory::notes(reply);
+    let remembered = if memory_on {
+        notes.remember.iter().filter_map(|fact| memory::remember(fact).ok()).collect()
+    } else {
+        Vec::new()
+    };
+    let used = notes.used.iter().filter_map(|n| known.get(n.wrapping_sub(1)).map(|m| m.text.clone())).collect();
+    ChatAnswer { text, sources, remembered, used }
+}
+
+// ── Saved chats and memory ────────────────────────────────────────────────────
+
+#[tauri::command]
+fn chats_list(shared: State<'_, Shared>) -> Vec<memory::ChatInfo> {
+    let keep = shared.settings.lock().unwrap().chat_keep_days;
+    memory::list_chats(keep)
+}
+
+#[tauri::command]
+fn chat_load(id: String) -> Result<memory::Chat, String> {
+    memory::load_chat(&id)
+}
+
+#[tauri::command]
+fn chat_save(chat: memory::Chat) -> Result<(), String> {
+    memory::save_chat(chat)
+}
+
+#[tauri::command]
+fn chat_delete(id: String) -> Result<(), String> {
+    memory::delete_chat(&id)
+}
+
+#[tauri::command]
+fn chats_clear() -> Result<(), String> {
+    memory::clear_chats()
+}
+
+#[tauri::command]
+fn memory_list() -> Vec<memory::Memory> {
+    memory::memories()
+}
+
+#[tauri::command]
+fn memory_add(text: String) -> Result<memory::Memory, String> {
+    memory::remember(&text)
+}
+
+#[tauri::command]
+fn memory_edit(id: String, text: String) -> Result<(), String> {
+    memory::edit(&id, &text)
+}
+
+#[tauri::command]
+fn memory_forget(id: String) -> Result<(), String> {
+    memory::forget(&id)
+}
+
+#[tauri::command]
+fn memory_forget_all() -> Result<(), String> {
+    memory::forget_all()
 }
 
 // ── Claude Code ───────────────────────────────────────────────────────────────
@@ -410,6 +515,84 @@ async fn linear_disconnect(app: AppHandle) -> Result<(), String> {
     linear::disconnect(&app).await
 }
 
+// ── Browsing ──────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn browser_status() -> browser::BrowserStatus {
+    browser::status()
+}
+
+/// Writes the extension (with this PC's token) and shows its folder in Explorer.
+#[tauri::command]
+fn browser_setup() -> Result<String, String> {
+    let dir = browser::install()?;
+    let _ = Command::new("explorer.exe").arg(&dir).spawn();
+    Ok(dir.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn browse_stop(id: String) {
+    browse::stop(&id);
+}
+
+/// Brings a browsing chat's tab to the front, so you can watch it work.
+#[tauri::command]
+async fn browse_watch(id: String) -> Result<(), String> {
+    browser::command("watch", serde_json::json!({ "task": id }), std::time::Duration::from_secs(5)).await.map(|_| ())
+}
+
+// ── Obsidian ──────────────────────────────────────────────────────────────────
+
+/// The chosen vault's folder.
+fn vault(shared: &State<'_, Shared>) -> Option<String> {
+    shared.settings.lock().unwrap().obsidian_vault.clone()
+}
+
+/// The vaults Obsidian knows about, most recent first.
+#[tauri::command]
+fn obsidian_vaults() -> Vec<obsidian::Vault> {
+    obsidian::vaults()
+}
+
+/// Windows' folder picker, for a vault Obsidian's list doesn't have; checked to be a vault.
+#[tauri::command]
+async fn obsidian_pick() -> Result<Option<obsidian::Vault>, String> {
+    let picked = tauri::async_runtime::spawn_blocking(|| agent::pick_folder("Which folder is your Obsidian vault?"))
+        .await
+        .map_err(|e| e.to_string())?;
+    picked.map(|p| obsidian::check(&p)).transpose()
+}
+
+#[tauri::command]
+fn obsidian_capture(shared: State<'_, Shared>, text: String) -> Result<obsidian::Added, String> {
+    obsidian::capture(vault(&shared).as_deref(), &text)
+}
+
+#[tauri::command]
+fn obsidian_open_today(shared: State<'_, Shared>) -> Result<(), String> {
+    obsidian::open_today(vault(&shared).as_deref())
+}
+
+#[tauri::command]
+fn obsidian_open(shared: State<'_, Shared>, path: String) -> Result<(), String> {
+    obsidian::open(vault(&shared).as_deref(), &path)
+}
+
+/// Reads up to a few thousand notes, so it runs off the main thread.
+#[tauri::command]
+async fn obsidian_search(shared: State<'_, Shared>, query: String) -> Result<Vec<obsidian::Found>, String> {
+    let vault = vault(&shared);
+    tauri::async_runtime::spawn_blocking(move || obsidian::search(vault.as_deref(), &query))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// A dropped file (already in the inbox) goes into the vault, linked in today's note.
+#[tauri::command]
+fn obsidian_save_file(shared: State<'_, Shared>, path: String) -> Result<obsidian::Added, String> {
+    obsidian::save_file(vault(&shared).as_deref(), &path)
+}
+
 /// Lets the island write to the same log as the Rust side.
 #[tauri::command]
 fn log_line(message: String) {
@@ -522,6 +705,27 @@ pub fn run() {
             linear_teams,
             linear_create_issue,
             log_line,
+            chats_list,
+            chat_load,
+            chat_save,
+            chat_delete,
+            chats_clear,
+            memory_list,
+            memory_add,
+            memory_edit,
+            memory_forget,
+            memory_forget_all,
+            browser_status,
+            browser_setup,
+            browse_stop,
+            browse_watch,
+            obsidian_vaults,
+            obsidian_pick,
+            obsidian_capture,
+            obsidian_open_today,
+            obsidian_open,
+            obsidian_search,
+            obsidian_save_file,
             open_settings_window,
         ])
         .setup(move |app| {

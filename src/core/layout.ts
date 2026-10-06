@@ -12,6 +12,7 @@ export type IslandViewName =
   | "linear"
   | "linear-new"
   | "linear-claude"
+  | "obsidian"
   | "levelup"
   | "bond"
   | "finished"
@@ -82,6 +83,7 @@ const VIEWS: Record<IslandViewName, ViewSpec> = {
   settings: [184, 54, 46],
   "linear-new": [176, 56, 50],
   "linear-claude": [214, 56, 50],
+  obsidian: [214, 56, 50],
   prompt: [240, 52, 44],
   ask: [244, 56, 50],
   linear: [244, 56, 50],

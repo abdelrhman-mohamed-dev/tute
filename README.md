@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="docs/promo/tute.mp4"><img src="docs/promo/tute.gif" alt="Tute: a little jelly that lives at the top of your screen" width="100%"></a>
+</p>
+
+<p align="center"><a href="docs/promo/tute.mp4">▶ Watch with sound</a></p>
+
 # Tute
 
 A small jelly that lives at the top of your Windows screen. It sits in a little
@@ -9,7 +15,13 @@ bar, opens on click, and keeps you company while you work:
 - **Linear** — your issues, quick moves, new issues, and "Do it with Claude" to
   hand an issue to a Claude Code session. Connects like an MCP client, with
   your own account: no keys to set up.
-- **Chat** — ask it anything, in a playful or a focused voice.
+- **Chat** — ask it anything, in a playful or a focused voice. Chats are saved
+  on your PC, and it remembers lasting things you tell it (see and edit them in
+  Settings → Memory).
+- **Browsing** — ask in the chat, and when a question needs the web, Tute looks
+  it up in your own Edge or Chrome (through its small extension) and answers
+  with sources.
+- **Obsidian** — jot into today's note, find a note, or drop a file into your vault.
 - **Files** — drag a file onto it and the jelly absorbs it.
 - **Bond** — the more you use it, the more it unlocks: hats, colours, a crown.
 
@@ -18,6 +30,8 @@ bar, opens on click, and keeps you company while you work:
 The jelly (`src/jelly/`), the window, the icons, the launch greeting, the
 three-poke splat, the "absorb" drop and every sound (`src/core/synth.ts`) are
 all drawn or synthesised in code. There are no image, animation or audio files.
+Even the video above is rendered by `scripts/promo/` from the real jelly, with
+its music and sounds synthesised there too.
 
 ## Build
 
@@ -56,6 +70,10 @@ src-tauri/           Rust backend (Tauri 2)
   src/inbox.rs       copies dropped files into the inbox
   src/claude.rs      Claude Code hooks (local listener)
   src/linear.rs      Linear over MCP (OAuth, no keys)
+  src/obsidian.rs    Obsidian: daily note, search, attachments (files only)
+  src/browse.rs      browsing: the AI's research loop
+  src/browser.rs     the link to Tute's browser extension
+extension/           the browser extension (Edge and Chrome)
 ```
 
 ## Where things live on disk
@@ -68,5 +86,5 @@ src-tauri/           Rust backend (Tauri 2)
 
 MIT — see [LICENSE](LICENSE).
 
-Thanks to [Coucou](https://github.com/Louis-CFM/coucou) by Louis Raillé (MIT),
-which Tute grew out of; parts of its code are still in here.
+Thanks to [Coucou](https://github.com/Louis-CFM/coucou) by Louis Raillé, which
+Tute grew out of.

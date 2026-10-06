@@ -1,99 +1,49 @@
-// Thin wrapper over the Tauri commands/events. Every call is a no-op when the
-// page is opened in a plain browser, so the island can be iterated on with
-// `npm run dev` alone.
+// How the pages talk to Rust: every Tauri command and event, typed. Outside
+// Tauri (`npm run dev` in a browser) nothing reaches Rust: calls answer null
+// or fail politely and events never come, so the island can still be worked on.
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import type { Settings } from "./state";
+import type { ChatMessage, MemoryItem, Settings } from "./state";
 
-export const IS_TAURI =
-  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+export const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
+type Args = Record<string, unknown>;
+
+/** A command whose failure isn't the user's business: logged, answered with null. */
+async function call<T>(command: string, args?: Args): Promise<T | null> {
   if (!IS_TAURI) return null;
-  try {
-    return await invoke<T>(cmd, args);
-  } catch (err) {
-    console.error(`[tute] ${cmd} failed`, err);
+  return invoke<T>(command, args).catch((err) => {
+    console.error(`[tute] ${command}:`, err);
     return null;
-  }
+  });
 }
 
-/** Same as `call`, but surfaces the error so the UI can show what went wrong. */
-async function callOrThrow<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (!IS_TAURI) throw new Error("not running inside Tute");
-  return invoke<T>(cmd, args);
+/** A command whose failure the user should see: the error is passed on. */
+async function callOrThrow<T>(command: string, args?: Args): Promise<T> {
+  if (!IS_TAURI) throw new Error("This only works inside the Tute app.");
+  return invoke<T>(command, args);
 }
+
+/** Listens to an event from Rust. Returns a function that stops listening. */
+export async function onEvent<T>(name: string, handler: (payload: T) => void): Promise<() => void> {
+  if (!IS_TAURI) return () => {};
+  return listen<T>(name, (e) => handler(e.payload));
+}
+
+// ── The app ─────────────────────────────────────────────────────────────────
 
 export interface BootInfo {
   settings: Settings;
-  /** Logical screen rect of the monitor the island lives on. */
+  /** The island's display, in logical pixels. */
   screen: { x: number; y: number; width: number; height: number; scale: number };
   version: string;
 }
 
-export const Bridge = {
-  boot: () => call<BootInfo>("boot"),
-
-  saveSettings: (settings: Settings) => call<void>("save_settings", { settings }),
-
-  /** Shrink the window down to the invisible wake strip (hidden) or back to full. */
-  setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
-
-  /**
-   * Pushes the island shape in window coordinates. Rust flips click-through from
-   * its own cursor watcher, so the flag is never a frame behind a click.
-   */
-  setIslandRect: (x: number, y: number, width: number, height: number) =>
-    call<void>("set_island_rect", { x, y, width, height }),
-
-  /** Give the window keyboard focus (for a text field) and take it away again. */
-  focusWindow: (focused: boolean) => call<void>("focus_window", { focused }),
-
-  reposition: () => call<void>("reposition"),
-
-  /** Connected displays, for the "Island lives on" picker. */
-  listMonitors: () => call<MonitorInfo[]>("list_monitors"),
-
-  openUrl: (url: string) => call<void>("open_url", { url }),
-
-  quit: () => call<void>("quit_app"),
-
-  openSettingsWindow: () => call<void>("open_settings_window"),
-
-  /** Writes to %LOCALAPPDATA%\Tute\tute.log, next to the Rust lines. */
-  log: (message: string) => call<void>("log_line", { message }),
-
-  /** Copies a dropped file into the inbox. */
-  ingestFile: (path: string) => callOrThrow<DroppedFile>("ingest_file", { path }),
-
-  /** Deletes an inbox copy. Rust refuses anything outside the inbox. */
-  discardFile: (path: string) => call<void>("discard_file", { path }),
-
-  // ── AI providers ──────────────────────────────────────────────────────────
-  /** Stores a key in the Credential Manager (empty removes it). Never readable back. */
-  providerKeySet: (providerId: string, key: string) =>
-    callOrThrow<void>("provider_key_set", { providerId, key }),
-  providerKeyPresent: (providerId: string) => call<boolean>("provider_key_present", { providerId }),
-  providerKeyClear: (providerId: string) => call<void>("provider_key_clear", { providerId }),
-  /** Same https-only rule Rust applies before any request. */
-  checkProviderUrl: (url: string) => callOrThrow<void>("check_provider_url", { url }),
-  /** Asks the provider for its model list. The provider must be saved first. */
-  aiListModels: (providerId: string) => callOrThrow<string[]>("ai_list_models", { providerId }),
-  /** Sends one short message to the model; the reply and how long it took. */
-  aiTest: (providerId: string, model: string) =>
-    callOrThrow<{ reply: string; millis: number }>("ai_test", { providerId, model }),
-  /**
-   * One chat turn with the active model. The reply also streams in as
-   * `chat-delta` events ({ requestId, text }) while this is pending.
-   */
-  aiChat: (requestId: number, messages: { role: string; content: string }[]) =>
-    callOrThrow<string>("ai_chat", { requestId, messages }),
-};
-
+/** A connected display, for "Island lives on". */
 export interface MonitorInfo {
-  /** Value to store in `Settings.screen`. */
+  /** What goes in `Settings.screen` to pin it. */
   id: `monitor:${string}`;
   label: string;
   primary: boolean;
@@ -105,31 +55,69 @@ export interface DroppedFile {
   size: number;
 }
 
+export const Bridge = {
+  boot: () => call<BootInfo>("boot"),
+  /** Saves, and tells the other window. */
+  saveSettings: (settings: Settings) => call<void>("save_settings", { settings }),
+  openUrl: (url: string) => call<void>("open_url", { url }),
+  openSettingsWindow: () => call<void>("open_settings_window"),
+  quit: () => call<void>("quit_app"),
+  /** A line in %LOCALAPPDATA%Tute	ute.log, among Rust's. */
+  log: (message: string) => call<void>("log_line", { message }),
+
+  // The window.
+  /** Hidden: fold the window to the wake strip. Shown: the full panel. */
+  setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
+  /** The island's outline in the window. Rust lets clicks through everywhere else. */
+  setIslandRect: (x: number, y: number, width: number, height: number) =>
+    call<void>("set_island_rect", { x, y, width, height }),
+  /** Takes the keyboard (a text field is up) or lets it go. */
+  focusWindow: (focused: boolean) => call<void>("focus_window", { focused }),
+  /** Places the window again (the displays changed). */
+  reposition: () => call<void>("reposition"),
+  listMonitors: () => call<MonitorInfo[]>("list_monitors"),
+
+  // Dropped files.
+  /** Copies a dropped file into the inbox. */
+  ingestFile: (path: string) => callOrThrow<DroppedFile>("ingest_file", { path }),
+  /** Deletes an inbox copy; Rust refuses anything outside the inbox. */
+  discardFile: (path: string) => call<void>("discard_file", { path }),
+
+  // AI providers. Keys go in and are never read back: only "is there one?".
+  providerKeySet: (providerId: string, key: string) => callOrThrow<void>("provider_key_set", { providerId, key }),
+  providerKeyPresent: (providerId: string) => call<boolean>("provider_key_present", { providerId }),
+  providerKeyClear: (providerId: string) => call<void>("provider_key_clear", { providerId }),
+  /** The same https-only rule Rust applies before every request. */
+  checkProviderUrl: (url: string) => callOrThrow<void>("check_provider_url", { url }),
+  aiListModels: (providerId: string) => callOrThrow<string[]>("ai_list_models", { providerId }),
+  /** One short message to the model: its reply, and how long it took. */
+  aiTest: (providerId: string, model: string) =>
+    callOrThrow<{ reply: string; millis: number }>("ai_test", { providerId, model }),
+  /**
+   * A chat turn with the active model. The reply also streams as `chat-delta`
+   * ({ requestId, text }). With `web`, it may browse first (`chat-step` per
+   * step) and answers with the pages it read.
+   */
+  aiChat: (requestId: number, messages: { role: string; content: string }[], web: boolean) =>
+    callOrThrow<ChatAnswer>("ai_chat", { requestId, messages, web }),
+};
+
 export interface DragDropPayload {
   type: "enter" | "over" | "drop" | "leave";
   paths?: string[];
 }
 
 /**
- * Files dragged onto the island. Only reaches us when the window takes the mouse.
- * Arrives as Tauri's own drag events or, since WebView2 154 took those over, as
- * `file-drag` from the island's own drop target (see catcher.rs).
+ * Files dragged onto the island: from our own drop catcher (`file-drag`, see
+ * catcher.rs), and from Tauri's drag events in case a webview ever delivers them.
  */
-export async function onDragDrop(handler: (e: DragDropPayload) => void) {
+export async function onDragDrop(handler: (e: DragDropPayload) => void): Promise<() => void> {
   if (!IS_TAURI) return () => {};
-  const offTauri = await getCurrentWebview().onDragDropEvent((event) => {
-    handler(event.payload as DragDropPayload);
-  });
-  const offOwn = await listen<DragDropPayload>("file-drag", (e) => handler(e.payload));
-  return () => {
-    offTauri();
-    offOwn();
-  };
-}
-
-export async function onEvent<T>(name: string, handler: (payload: T) => void) {
-  if (!IS_TAURI) return () => {};
-  return listen<T>(name, (e) => handler(e.payload));
+  const stops = await Promise.all([
+    getCurrentWebview().onDragDropEvent((e) => handler(e.payload as DragDropPayload)),
+    listen<DragDropPayload>("file-drag", (e) => handler(e.payload)),
+  ]);
+  return () => stops.forEach((stop) => stop());
 }
 
 // ── Claude Code ─────────────────────────────────────────────────────────────
@@ -261,4 +249,92 @@ export const DoWithClaude = {
   /** Claude finished: comment its summary and/or move the issue to review. */
   finish: (id: string, team: string, summary: string, comment: boolean, review: boolean) =>
     callOrThrow<LinearFinished>("linear_finish_issue", { id, team, summary, comment, review }),
+};
+
+// ── Obsidian ────────────────────────────────────────────────────────────────
+
+export interface ObsidianVault {
+  name: string;
+  /** Its folder; what goes in `Settings.obsidianVault`. */
+  path: string;
+}
+
+export interface ObsidianFound {
+  /** Inside the vault, with forward slashes. */
+  path: string;
+  title: string;
+  /** A line around the match, when it matched inside the note. */
+  snippet: string | null;
+}
+
+export const ObsidianBridge = {
+  /** The vaults Obsidian knows about on this PC, most recent first. */
+  vaults: () => call<ObsidianVault[]>("obsidian_vaults"),
+  /** Windows' folder picker; null if cancelled, an error if it isn't a vault. */
+  pick: () => callOrThrow<ObsidianVault | null>("obsidian_pick"),
+  /** Adds a line to today's note; says which note. */
+  capture: (text: string) => callOrThrow<{ note: string }>("obsidian_capture", { text }),
+  openToday: () => callOrThrow<void>("obsidian_open_today"),
+  open: (path: string) => callOrThrow<void>("obsidian_open", { path }),
+  search: (query: string) => callOrThrow<ObsidianFound[]>("obsidian_search", { query }),
+  /** A dropped file (its inbox copy) into the vault, linked in today's note. */
+  saveFile: (path: string) => callOrThrow<{ note: string }>("obsidian_save_file", { path }),
+};
+
+// ── Browsing ────────────────────────────────────────────────────────────────
+
+export interface BrowserStatus {
+  /** The extension asked Tute for work in the last minute. */
+  connected: boolean;
+  /** Where the extension's files are, once written. */
+  folder: string | null;
+}
+
+export const BrowseBridge = {
+  status: () => call<BrowserStatus>("browser_status"),
+  /** Writes the extension (with this PC's token) and opens its folder. */
+  setup: () => callOrThrow<string>("browser_setup"),
+  /** Stops a browsing chat (`chat-<request>`). */
+  stop: (id: string) => call<void>("browse_stop", { id }),
+  /** Brings its tab to the front. */
+  watch: (id: string) => callOrThrow<void>("browse_watch", { id }),
+};
+
+// ── Saved chats and memory ──────────────────────────────────────────────────
+
+/** A chat answer: its text, the pages it read, what it remembered, which memories it used. */
+export interface ChatAnswer {
+  text: string;
+  sources: { title: string; url: string }[];
+  remembered: MemoryItem[];
+  used: string[];
+}
+
+export interface ChatInfo {
+  id: string;
+  title: string;
+  updated: number;
+}
+
+export interface SavedChat extends ChatInfo {
+  /** The messages as the chat keeps them (State.chatHistory). */
+  messages: ChatMessage[];
+}
+
+export const ChatsBridge = {
+  /** Newest first; chats older than the "keep for" setting are cleared on the way. */
+  list: () => call<ChatInfo[]>("chats_list"),
+  load: (id: string) => callOrThrow<SavedChat>("chat_load", { id }),
+  save: (chat: { id: string; title: string; messages: ChatMessage[] }) =>
+    call<void>("chat_save", { chat: { ...chat, updated: 0 } }),
+  delete: (id: string) => call<void>("chat_delete", { id }),
+  clear: () => callOrThrow<void>("chats_clear"),
+};
+
+export const MemoryBridge = {
+  list: () => call<MemoryItem[]>("memory_list"),
+  add: (text: string) => callOrThrow<MemoryItem>("memory_add", { text }),
+  edit: (id: string, text: string) => callOrThrow<void>("memory_edit", { id, text }),
+  forget: (id: string) => call<void>("memory_forget", { id }),
+  forgetAll: () => callOrThrow<void>("memory_forget_all"),
 };

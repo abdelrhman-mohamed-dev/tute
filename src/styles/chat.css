@@ -138,3 +138,214 @@
   white-space: pre-wrap;
   user-select: text;
 }
+
+/* The globe: on, the message is a browsing task. */
+.browse-toggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--drop);
+  color: var(--text-faint);
+  transition: background var(--quick), color var(--quick);
+}
+
+.browse-toggle:hover {
+  color: var(--text);
+}
+
+.browse-toggle.on {
+  background: rgba(62, 155, 255, 0.22);
+  color: #8cc2ff;
+}
+
+.bubble .globe {
+  display: inline-grid;
+  margin-right: 5px;
+  vertical-align: -1px;
+  color: #8cc2ff;
+}
+
+/* Where a browsing answer came from. */
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.source {
+  padding: 2px 8px;
+  border-radius: var(--bead-sm);
+  background: var(--tint-1);
+  color: var(--text-dim);
+  font: 500 10.5px var(--font);
+}
+
+.source:hover {
+  background: var(--tint-2);
+  color: var(--text);
+}
+
+/* While it browses: the current step, with Watch and Stop. */
+.web-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 2px;
+  font: 400 12px var(--font);
+  color: #8cc2ff;
+}
+
+.web-step .globe {
+  display: inline-grid;
+  margin-right: 2px;
+}
+
+.web-now {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ── Saved chats: the menu at the top left ── */
+
+.chat-card {
+  position: relative;
+}
+
+.chats-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 170px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--well);
+  font: 500 11px var(--font);
+}
+
+.chats-btn:hover {
+  background: var(--tint-2);
+}
+
+.chats-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chats-btn .caret {
+  color: var(--text-faint);
+}
+
+.chats-menu {
+  position: absolute;
+  top: 40px;
+  left: 84px;
+  z-index: 3;
+  width: 290px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: #1d222d;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.chats-find {
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 8px;
+  outline: none;
+  background: var(--well);
+  color: var(--text);
+  font: 400 12px var(--font);
+  cursor: text;
+}
+
+.chats-list {
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.chats-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.chats-item:hover,
+.chats-item.on {
+  background: var(--tint-1);
+}
+
+.chats-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chats-when {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.chats-x {
+  flex: 0 0 auto;
+  width: 18px;
+  border-radius: 50%;
+  color: var(--text-faint);
+  font-size: 10px;
+  visibility: hidden;
+}
+
+.chats-item:hover .chats-x {
+  visibility: visible;
+}
+
+.chats-x:hover {
+  color: var(--danger-text);
+}
+
+.chats-empty {
+  padding: 10px 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ── Memory: what it just remembered, and what shaped an answer ── */
+
+.remembered {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 3px 9px;
+  border-radius: var(--bead-sm);
+  background: rgba(168, 130, 255, 0.14);
+  color: #d4c3ff;
+  font-size: 11px;
+}
+
+.remembered b {
+  font-weight: 600;
+}
+
+.remembered .link-btn {
+  color: var(--text-dim);
+  text-decoration: underline;
+}
+
+.source.memo {
+  color: #d4c3ff;
+  background: rgba(168, 130, 255, 0.1);
+}

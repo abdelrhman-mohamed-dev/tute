@@ -50,8 +50,8 @@
     ],
     "copyright": "© Abdelrhman Mohamed",
     "category": "Utility",
-    "shortDescription": "A little island at the top of your screen",
-    "longDescription": "Tute puts a small animated island at the top of your screen.",
+    "shortDescription": "A jelly at the top of your screen that keeps you company",
+    "longDescription": "Tute is a little jelly that lives at the top of your screen. It follows your Claude Code sessions and lets you answer them, works with your Linear issues, chats, and takes files you drop on it.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",

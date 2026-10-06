@@ -2,7 +2,7 @@
 // the island needs from each (ViewHost), and the list of them all.
 //
 // Each view lives in its own file: home.ts (overview, empty), alerts.ts,
-// chat.ts, ask.ts, linear.ts, bond.ts, gear.ts, upload.ts, picker.ts; the
+// chat.ts, ask.ts, linear.ts, obsidian.ts, bond.ts, gear.ts, upload.ts, picker.ts; the
 // header is header.ts and the shared pieces are in kit.ts.
 
 import type { BotEmoteName, IslandViewName } from "../core/layout";
@@ -17,6 +17,7 @@ import { buildPrompt } from "./chat";
 import { buildGear } from "./gear";
 import { buildEmpty, buildOverview } from "./home";
 import { buildLinearClaude, buildLinearIssues, buildLinearNew } from "./linear";
+import { buildObsidian } from "./obsidian";
 import { buildPicker } from "./picker";
 import { buildChoose, buildUpload, buildUploading } from "./upload";
 
@@ -42,6 +43,13 @@ export interface ViewActions {
   setPersonality(p: Personality): void;
   /** Home quick action: connect Linear, or show your issues once connected. */
   linearAction(): void;
+  /** Home quick action: Obsidian, or choosing the vault if there's none yet. */
+  obsidianAction(): void;
+  /** Choose card: the dropped file goes into the Obsidian vault. */
+  saveToObsidian(): void;
+  /** A browsing chat: bring its tab to the front, or stop it. */
+  browseWatch(id: string): void;
+  browseStop(id: string): void;
   /** Linear: issues, moves with Undo, new issues (island/linear.ts). */
   linear: LinearActions;
   /** Saves State.settings as they are now. */
@@ -88,6 +96,7 @@ export function buildViews(actions: ViewActions, onChatResize: () => void): Map<
     ["linear", buildLinearIssues(actions)],
     ["linear-new", buildLinearNew(actions)],
     ["linear-claude", buildLinearClaude(actions)],
+    ["obsidian", buildObsidian(actions)],
     ["levelup", buildLevelUp(actions)],
     ["bond", buildBond(actions)],
     ["settings", buildGear(actions)],

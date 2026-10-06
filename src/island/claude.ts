@@ -17,7 +17,7 @@ import type { Island } from "./island";
 
 /** Views the user is busy in: an alert waits as a badge instead of taking over. */
 const BUSY_VIEWS: ReadonlySet<IslandViewName> = new Set([
-  "prompt", "upload", "uploading", "choose", "personality", "greeting", "settings", "confused",
+  "prompt", "upload", "uploading", "choose", "personality", "greeting", "settings", "confused", "obsidian",
 ]);
 
 /**

@@ -8,7 +8,7 @@
 //   done    it dissolves in a sparkle; the jelly reacts to what it absorbed
 //           (star eyes for an image, a thinking look for code, a struggle
 //           for a huge file)
-//   choose  "<name> is in!" with Keep it / Cancel
+//   choose  "<name> is in!" with Save to Obsidian (once a vault is chosen) / Keep it / Cancel
 //
 // The canvas covers the island's 640×176 body. Timings are in sequence.ts.
 
@@ -30,20 +30,26 @@ const JR = 32;
 /** Text column, the bubble meter and the choose buttons. */
 const TX = 236;
 const METER = { x: 242, y: 136, n: 10, gap: 22, r: 7 };
-const BTN = { y: 120, h: 28, keep: { x: 236, w: 112 }, cancel: { x: 356, w: 92 } };
-
-/** Primary button on the choose card. TODO(tute): pick what a dropped file is for. */
-const PRIMARY_LABEL = "Keep it";
+/** The choose card's buttons: their row, height and the gap between them. */
+const BTN = { y: 120, h: 28, gap: 8 };
 
 const seg = (t: number, a: number, b: number) => clamp((t - a) / (b - a), 0, 1);
 const eOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const eInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 export interface UploadCanvasActions {
-  /** Primary button — see PRIMARY_LABEL. */
-  primary(): void;
-  /** Secondary button. */
+  /** "Save to Obsidian": into the vault (offered once one is chosen). */
+  obsidian(): void;
+  /** "Keep it": stays in Tute's inbox. */
+  keep(): void;
   cancel(): void;
+}
+
+/** One button on the choose card; the first is the solid one. */
+interface Choice {
+  label: string;
+  w: number;
+  run(): void;
 }
 
 function text(
@@ -94,40 +100,69 @@ function drawDoc(x: CanvasRenderingContext2D, scale: number, alpha: number) {
 }
 
 export class UploadCanvas {
-  /** Wrapper holding the canvas and the two invisible choose buttons. */
+  /** Wrapper holding the canvas and the invisible buttons over the ones it paints. */
   readonly el: HTMLElement;
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D | null;
   private overlay: HTMLElement;
   private sizedFor = 0;
+  /** Which set of buttons the hit areas are laid out for. */
+  private laidOut = "";
 
-  constructor(actions: UploadCanvasActions) {
+  constructor(private actions: UploadCanvasActions) {
     this.canvas = document.createElement("canvas");
     this.canvas.id = "upload-canvas";
-
-    // Invisible hit areas over the buttons the canvas paints.
-    const mk = (bx: number, bw: number, onclick: () => void) => {
-      const b = document.createElement("button");
-      b.className = "upload-hit";
-      b.style.left = `${bx}px`;
-      b.style.top = `${BTN.y}px`;
-      b.style.width = `${bw}px`;
-      b.style.height = `${BTN.h}px`;
-      b.addEventListener("click", onclick);
-      return b;
-    };
     this.overlay = document.createElement("div");
     this.overlay.id = "upload-overlay";
-    this.overlay.append(
-      mk(BTN.keep.x, BTN.keep.w, actions.primary),
-      mk(BTN.cancel.x, BTN.cancel.w, actions.cancel),
-    );
 
     this.el = document.createElement("div");
     this.el.id = "upload-layer";
     this.el.append(this.canvas, this.overlay);
     this.ctx = this.canvas.getContext("2d");
+  }
+
+  /** The buttons on offer: with a vault, Obsidian first. */
+  private choices(): Choice[] {
+    const a = this.actions;
+    return State.settings.obsidianVault
+      ? [
+          { label: "Save to Obsidian", w: 140, run: a.obsidian },
+          { label: "Keep it", w: 80, run: a.keep },
+          { label: "Cancel", w: 80, run: a.cancel },
+        ]
+      : [
+          { label: "Keep it", w: 112, run: a.keep },
+          { label: "Cancel", w: 92, run: a.cancel },
+        ];
+  }
+
+  /** Where each button goes, left to right from the text column. */
+  private static place(list: Choice[]): number[] {
+    let x = TX;
+    return list.map((c) => {
+      const at = x;
+      x += c.w + BTN.gap;
+      return at;
+    });
+  }
+
+  /** Invisible buttons over the painted ones; rebuilt only when the set changes. */
+  private layOutHits(list: Choice[]) {
+    const key = list.map((c) => c.label).join("|");
+    if (key === this.laidOut) return;
+    this.laidOut = key;
+    const xs = UploadCanvas.place(list);
+    this.overlay.replaceChildren(
+      ...list.map((c, i) => {
+        const b = document.createElement("button");
+        b.className = "upload-hit";
+        b.title = c.label;
+        Object.assign(b.style, { left: `${xs[i]}px`, top: `${BTN.y}px`, width: `${c.w}px`, height: `${BTN.h}px` });
+        b.addEventListener("click", c.run);
+        return b;
+      }),
+    );
   }
 
   draw(f: DropFrame, wallTime: number) {
@@ -272,8 +307,13 @@ export class UploadCanvas {
       x.translate(0, (1 - chooseAlpha) * 4);
       text(x, `${name} is in!`, TX, 76, `600 15px ${FONT}`, "#F2F6FD");
       text(x, "What do you want to do with it?", TX, 97, `400 12.5px ${FONT}`, "#B9C8E4");
-      this.drawButton(x, BTN.keep.x, BTN.keep.w, PRIMARY_LABEL, look.body, "#13213A");
-      this.drawButton(x, BTN.cancel.x, BTN.cancel.w, "Cancel", `rgba(${look.rgb},0.2)`, "#F2F6FD");
+      const list = this.choices();
+      this.layOutHits(list);
+      UploadCanvas.place(list).forEach((bx, i) =>
+        i === 0
+          ? this.drawButton(x, bx, list[i].w, list[i].label, look.body, "#13213A")
+          : this.drawButton(x, bx, list[i].w, list[i].label, `rgba(${look.rgb},0.2)`, "#F2F6FD"),
+      );
       x.restore();
     }
   }

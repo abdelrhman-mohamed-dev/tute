@@ -1,0 +1,448 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Tute promo</title>
+<style>
+  html, body { margin: 0; background: #07090d; height: 100%; display: grid; place-items: center; }
+  canvas { width: min(100vw, 177.78vh); aspect-ratio: 16 / 9; display: block; }
+  #note { position: fixed; left: 12px; bottom: 10px; color: #8a96a8; font: 12px system-ui; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<div id="note"></div>
+<script type="module">
+// Tute's promo, drawn in code like everything else: the real jelly engine on a
+// virtual clock, so a recording is exact frame by frame (record.mjs).
+// Open with ?record to render and send every frame to the recorder.
+
+let VT = 0; // the virtual clock, seconds
+performance.now = () => VT * 1000;
+const { JellyEngine } = await import("/src/jelly/engine.ts");
+const { LOOKS } = await import("/src/jelly/looks.ts");
+
+const FPS = 30;
+const LENGTH = 28;
+const W = 1280, H = 720; // drawn in these units, scaled to 1920×1080
+const canvas = document.getElementById("c");
+const x = canvas.getContext("2d");
+const FONT = `"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif`;
+
+const C = {
+  bg: "#07090d", tile: "#121722", edge: "#232b3a", well: "#0c1018",
+  text: "#eef2f7", soft: "#9aa6b8", dim: "#5f6b7e",
+  jelly: "#C9DCF5", claude: "#D97757", ok: "#36D39A", blue: "#3E9BFF",
+  purple: "#8B66F4", obsidian: "#A882FF", linear: "#7C86F5", tg: "#2AABEE",
+};
+
+// ── Little helpers ──────────────────────────────────────────────────────────
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const outCubic = (p) => 1 - Math.pow(1 - p, 3);
+const inOutCubic = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+const outBack = (p) => { const c = 1.6; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2); };
+const inBack = (p) => { const c = 1.6; return (c + 1) * p * p * p - c * p * p; };
+const lerp = (a, b, p) => a + (b - a) * p;
+/** 0 before `a`, fades in, holds, fades out by `b`. */
+const span = (t, a, b, fin = 0.45, fout = 0.4) => Math.min(prog(t, a, a + fin), 1 - prog(t, b - fout, b));
+const hexA = (hex, a) => {
+  const v = parseInt(hex.slice(1), 16);
+  return `rgba(${(v >> 16) & 255},${(v >> 8) & 255},${v & 255},${a})`;
+};
+const typed = (s, p) => s.slice(0, Math.round(s.length * clamp(p)));
+
+function rr(px, py, w, h, r) { x.beginPath(); x.roundRect(px, py, w, h, r); }
+function text(s, px, py, size, color, o = {}) {
+  x.font = `${o.weight ?? 400} ${size}px ${FONT}`;
+  x.fillStyle = color;
+  x.textAlign = o.align ?? "left";
+  x.textBaseline = o.base ?? "alphabetic";
+  if (o.spacing) x.letterSpacing = `${o.spacing}px`;
+  x.fillText(s, px, py);
+  x.letterSpacing = "0px";
+  return x.measureText(s).width;
+}
+function glow(px, py, r, color, a) {
+  const g = x.createRadialGradient(px, py, 0, px, py, r);
+  g.addColorStop(0, hexA(color, a));
+  g.addColorStop(1, hexA(color, 0));
+  x.fillStyle = g;
+  x.fillRect(px - r, py - r, r * 2, r * 2);
+}
+function dot(px, py, r, color) { x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fillStyle = color; x.fill(); }
+function check(px, py, s, color) {
+  x.beginPath(); x.moveTo(px - s * 0.45, py); x.lineTo(px - s * 0.1, py + s * 0.35); x.lineTo(px + s * 0.5, py - s * 0.35);
+  x.strokeStyle = color; x.lineWidth = s * 0.22; x.lineCap = "round"; x.lineJoin = "round"; x.stroke();
+}
+/** A pill chip: coloured dot + label. */
+function chip(px, py, label, color, a = 1, o = {}) {
+  x.save(); x.globalAlpha *= a;
+  x.font = `500 ${o.size ?? 15}px ${FONT}`;
+  const w = x.measureText(label).width + 44, h = (o.size ?? 15) + 18;
+  rr(px, py, w, h, h / 2); x.fillStyle = hexA(color, 0.14); x.fill();
+  x.strokeStyle = hexA(color, 0.35); x.lineWidth = 1; x.stroke();
+  dot(px + 16, py + h / 2, 4.5, color);
+  text(label, px + 28, py + h / 2 + 1, o.size ?? 15, C.text, { weight: 500, base: "middle" });
+  x.restore();
+  return w;
+}
+
+// ── The jelly ───────────────────────────────────────────────────────────────
+const jelly = new JellyEngine();
+jelly.look = LOOKS.tute;
+jelly.live = true;
+jelly.particleOverhang = 0;
+jelly.setState("idle", true);
+
+/** Where the jelly is and how big (R = its size): it travels between scenes. */
+function jellyAt(t) {
+  const fall = outCubic(prog(t, 0.35, 0.95));
+  let px = 640, py = lerp(-160, 300, Math.pow(prog(t, 0.35, 0.95), 2)), R = 92;
+  if (t > 0.95) py = 300;
+  void fall;
+  const toTile = inOutCubic(prog(t, 3.9, 4.9));
+  px = lerp(px, 742, toTile); py = lerp(py, 385, toTile); R = lerp(R, 62, toTile);
+  const out = inOutCubic(prog(t, 22.9, 23.8));
+  px = lerp(px, 640, out); py = lerp(py, 268, out); R = lerp(R, 96, out);
+  return { px, py, R };
+}
+
+function drawJelly(t) {
+  const { px, py, R } = jellyAt(t);
+  glow(px, py + R * 0.1, R * 2.6, accentAt(t), 0.22);
+  // The engine draws into a W×W box with the body at its centre; R = 0.3·W.
+  const box = R / 0.3;
+  x.save();
+  x.translate(px - box / 2, py - box / 2 - R * 0.14);
+  jelly.draw(x, box, box);
+  x.restore();
+}
+
+// What the jelly does, and when.
+const EVENTS = [
+  [0.95, () => jelly.triggerEmote("surprised", 0.7)],
+  [1.7, () => jelly.jump()],
+  [2.6, () => jelly.triggerEmote("love", 1.4)],
+  [5.0, () => jelly.setState("working")],
+  [8.3, () => jelly.setState("finished")],
+  [9.4, () => jelly.setState("idle")],
+  [10.9, () => jelly.setState("thinking")],
+  [11.8, () => jelly.setState("idle")],
+  [12.9, () => jelly.triggerEmote("happy", 1)],
+  [15.15, () => { jelly.triggerEmote("surprised", 0.6); jelly.emit("spark", 4); }],
+  [17.3, () => jelly.triggerEmote("proud", 1.2)],
+  [19.0, () => jelly.phoneIn()],
+  [20.1, () => jelly.phoneTyping()],
+  [21.9, () => jelly.phoneSent()],
+  [23.7, () => jelly.celebrate(4)],
+  [26.0, () => jelly.triggerEmote("wink", 0.8)],
+];
+let nextEvent = 0;
+
+// ── Background ──────────────────────────────────────────────────────────────
+const SCENES = [
+  { from: 0, accent: C.jelly },
+  { from: 4.4, accent: C.claude },
+  { from: 9.4, accent: C.purple },
+  { from: 13.9, accent: C.obsidian },
+  { from: 18.4, accent: C.tg },
+  { from: 22.9, accent: C.jelly },
+];
+function accentAt(t) {
+  let s = SCENES[0];
+  for (const sc of SCENES) if (t >= sc.from) s = sc;
+  return s.accent;
+}
+const DUST = Array.from({ length: 46 }, (_, i) => {
+  const r = (n) => ((Math.sin(i * 127.1 + n * 311.7) * 43758.5453) % 1 + 1) % 1;
+  return { x: r(1) * W, y: r(2) * H, s: 0.6 + r(3) * 1.6, v: 6 + r(4) * 14, a: 0.12 + r(5) * 0.3 };
+});
+function background(t) {
+  x.fillStyle = C.bg;
+  x.fillRect(0, 0, W, H);
+  const a = accentAt(t);
+  glow(260 + Math.sin(t * 0.3) * 60, 160, 620, a, 0.09);
+  glow(1060 + Math.cos(t * 0.25) * 60, 620, 560, a, 0.06);
+  for (const d of DUST) {
+    const y = ((d.y - t * d.v) % H + H) % H;
+    dot(d.x + Math.sin(t * 0.6 + d.y) * 8, y, d.s, `rgba(201,220,245,${d.a * 0.6})`);
+  }
+}
+
+// ── Captions (left side of the feature scenes) ──────────────────────────────
+function caption(t, a, b, eyebrow, color, lines, sub) {
+  const k = span(t, a, b, 0.6, 0.4);
+  if (k <= 0) return;
+  x.save();
+  x.globalAlpha = k;
+  const rise = (1 - outCubic(prog(t, a, a + 0.7))) * 24;
+  text(eyebrow, 100, 268 + rise, 15, color, { weight: 600, spacing: 2.4 });
+  lines.forEach((l, i) => {
+    const r = (1 - outCubic(prog(t, a + 0.08 * (i + 1), a + 0.8 + 0.08 * i))) * 30;
+    text(l, 98, 330 + i * 60 + r, 54, C.text, { weight: 600 });
+  });
+  const r = (1 - outCubic(prog(t, a + 0.25, a + 1))) * 30;
+  text(sub, 100, 330 + lines.length * 60 + 18 + r, 20, C.soft);
+  x.restore();
+}
+
+// ── The island tile (the feature scenes happen inside it) ───────────────────
+const TILE = { x: 610, y: 190, w: 580, h: 360 };
+function tile(t) {
+  const drop = outBack(prog(t, 4.1, 4.95));
+  const lift = inBack(prog(t, 22.8, 23.4));
+  const y = lerp(-420, TILE.y, drop) - lift * 640;
+  if (t < 4.1 || t > 23.4) return null;
+  x.save();
+  x.shadowColor = "rgba(0,0,0,0.55)"; x.shadowBlur = 50; x.shadowOffsetY = 18;
+  rr(TILE.x, y, TILE.w, TILE.h, 30); x.fillStyle = C.tile; x.fill();
+  x.restore();
+  rr(TILE.x, y, TILE.w, TILE.h, 30); x.strokeStyle = C.edge; x.lineWidth = 1.2; x.stroke();
+  // The little island bar it hangs from.
+  rr(TILE.x + TILE.w / 2 - 34, y + 12, 68, 5, 3); x.fillStyle = "#2a3242"; x.fill();
+  return y;
+}
+
+/** Content inside the tile, to the right of the jelly. */
+const CX = 830;
+
+function claudeScene(t, ty) {
+  const k = span(t, 4.7, 9.3, 0.4, 0.35);
+  if (k <= 0) return;
+  x.save(); x.globalAlpha = k;
+  const y0 = ty + 70;
+  dot(CX + 8, y0, 8, C.claude);
+  text("Claude Code", CX + 26, y0 + 6, 19, C.text, { weight: 600 });
+  text("fix login redirect", CX + 26, y0 + 32, 15, C.soft);
+  const steps = [["Read src/auth.ts", 5.3], ["Edited login.tsx", 6.1], ["Ran 42 tests", 6.9], ["Wrote the summary", 7.6]];
+  steps.forEach(([label, at], i) => {
+    const p = outCubic(prog(t, at, at + 0.4));
+    if (p <= 0) return;
+    const yy = y0 + 76 + i * 40;
+    const done = t > (steps[i + 1]?.[1] ?? 8.3);
+    x.save(); x.globalAlpha *= p; x.translate((1 - p) * 30, 0);
+    if (done) { dot(CX + 10, yy, 10, hexA(C.ok, 0.18)); check(CX + 10, yy, 11, C.ok); }
+    else {
+      x.beginPath(); x.arc(CX + 10, yy, 8, t * 6, t * 6 + 4.2);
+      x.strokeStyle = C.blue; x.lineWidth = 2.6; x.lineCap = "round"; x.stroke();
+    }
+    text(label, CX + 32, yy + 5, 16, done ? C.soft : C.text);
+    x.restore();
+  });
+  const d = outBack(prog(t, 8.3, 8.75));
+  if (d > 0) {
+    x.save(); x.translate(CX, y0 + 248); x.scale(d, d);
+    chip(0, -16, "Done · 3 files changed", C.ok, 1, { size: 16 });
+    x.restore();
+  }
+  x.restore();
+}
+
+function chatScene(t, ty) {
+  const k = span(t, 9.6, 13.9, 0.4, 0.35);
+  if (k <= 0) return;
+  x.save(); x.globalAlpha = k;
+  const y0 = ty + 58;
+  // The question, typed into the ask bar.
+  rr(CX, y0, 330, 46, 23); x.fillStyle = C.well; x.fill(); x.strokeStyle = C.edge; x.stroke();
+  const q = typed("Plan my week around the launch", prog(t, 9.9, 10.8));
+  text(q || "Ask me anything…", CX + 20, y0 + 29, 15.5, q ? C.text : C.dim);
+  if (t > 9.9 && t < 10.9 && Math.floor(t * 3) % 2 === 0) {
+    x.font = `15.5px ${FONT}`;
+    x.fillStyle = C.text; x.fillRect(CX + 21 + x.measureText(q).width, y0 + 14, 1.6, 19);
+  }
+  // Browsing, then the answer streams in.
+  const b = span(t, 10.9, 11.9, 0.2, 0.2);
+  if (b > 0) chip(CX, y0 + 66, `Reading ${1 + Math.min(2, Math.floor((t - 10.9) * 3))} of 3 pages`, C.blue, b);
+  const lines = ["Mon · final QA pass", "Wed · launch post goes out", "Thu · ship it and celebrate"];
+  lines.forEach((l, i) => {
+    const s = typed(l, prog(t, 11.9 + i * 0.32, 12.3 + i * 0.32));
+    if (!s) return;
+    text("•", CX + 4, y0 + 92 + i * 30, 17, C.purple, { weight: 700 });
+    text(s, CX + 22, y0 + 92 + i * 30, 17, C.text);
+  });
+  const m = outBack(prog(t, 12.9, 13.35));
+  if (m > 0) {
+    x.save(); x.translate(CX, y0 + 196); x.scale(m, m);
+    const w = chip(0, 0, "Remembered: launch is Thursday", C.purple);
+    text("Undo", w + 12, 21, 14, C.soft, { weight: 500 });
+    x.restore();
+  }
+  x.restore();
+}
+
+function dropScene(t, ty) {
+  const k = span(t, 14.0, 18.4, 0.3, 0.35);
+  if (k <= 0) return;
+  // The file flies in on a curve and the jelly swallows it.
+  const f = prog(t, 14.35, 15.15);
+  if (f > 0 && f < 1) {
+    const { px, py } = jellyAt(t);
+    const e = inOutCubic(f);
+    const fx = lerp(1240, px, e), fy = lerp(690, py, e) - Math.sin(e * Math.PI) * 170;
+    const s = lerp(1, 0.25, Math.pow(e, 3));
+    x.save(); x.translate(fx, fy); x.rotate((1 - e) * 0.4); x.scale(s, s);
+    x.shadowColor = "rgba(0,0,0,0.5)"; x.shadowBlur = 24;
+    rr(-38, -48, 76, 96, 10); x.fillStyle = "#e8edf4"; x.fill();
+    x.shadowBlur = 0;
+    rr(-38, 18, 76, 30, { lowerLeft: 10, lowerRight: 10 }); x.fillStyle = "#e5484d"; x.fill();
+    text("PDF", 0, 39, 15, "#fff", { weight: 700, align: "center" });
+    for (let i = 0; i < 3; i++) { rr(-24, -32 + i * 13, 48 - i * 10, 5, 2.5); x.fillStyle = "#b9c3d1"; x.fill(); }
+    x.restore();
+  }
+  x.save(); x.globalAlpha = k;
+  const y0 = ty + 66;
+  const named = prog(t, 15.3, 15.6);
+  if (named > 0) {
+    x.save(); x.globalAlpha *= named;
+    text("launch-plan.pdf", CX, y0 + 6, 19, C.text, { weight: 600 });
+    text("2.4 MB · what should I do with it?", CX, y0 + 32, 15, C.soft);
+    x.restore();
+  }
+  const opts = [["Save to Obsidian", C.obsidian], ["New Linear issue", C.linear], ["Ask about it", C.jelly]];
+  opts.forEach(([label, color], i) => {
+    const p = outCubic(prog(t, 15.6 + i * 0.15, 16.0 + i * 0.15));
+    if (p <= 0) return;
+    const yy = y0 + 64 + i * 52;
+    const picked = i === 0 && t > 16.7;
+    x.save(); x.globalAlpha *= p; x.translate((1 - p) * 40, 0);
+    rr(CX, yy, 320, 42, 14);
+    x.fillStyle = picked ? hexA(color, 0.18) : C.well; x.fill();
+    x.strokeStyle = picked ? hexA(color, 0.6) : C.edge; x.lineWidth = 1.2; x.stroke();
+    dot(CX + 22, yy + 21, 6, color);
+    text(label, CX + 40, yy + 27, 16, C.text, { weight: 500 });
+    if (picked && t > 17.2) {
+      const c = outBack(prog(t, 17.2, 17.5));
+      x.save(); x.translate(CX + 296, yy + 21); x.scale(c, c); check(0, 0, 14, C.ok); x.restore();
+    }
+    x.restore();
+  });
+  const saved = prog(t, 17.3, 17.6);
+  if (saved > 0) text("Saved to today's daily note", CX, y0 + 236, 15, C.ok, { weight: 500 });
+  x.restore();
+}
+
+function phoneScene(t, ty) {
+  const k = span(t, 18.5, 22.9, 0.4, 0.35);
+  if (k <= 0) return;
+  x.save(); x.globalAlpha = k;
+  const y0 = ty + 62;
+  rr(CX, y0 - 10, 330, 250, 20); x.fillStyle = "#0e1621"; x.fill();
+  rr(CX, y0 - 10, 330, 44, { upperLeft: 20, upperRight: 20 }); x.fillStyle = "#17212b"; x.fill();
+  dot(CX + 26, y0 + 12, 12, C.tg);
+  text("Tute", CX + 46, y0 + 10, 15, C.text, { weight: 600 });
+  const typing = t > 20.1 && t < 21.9;
+  text(typing ? "typing…" : "online", CX + 46, y0 + 27, 12.5, typing ? C.tg : C.soft);
+  const bubble = (s, right, yy, p) => {
+    x.font = `15px ${FONT}`;
+    const w = Math.min(250, x.measureText(s).width + 28);
+    const bx = right ? CX + 330 - 14 - w : CX + 14;
+    x.save(); x.globalAlpha *= p; x.translate(0, (1 - p) * 14);
+    rr(bx, yy, w, 36, 14); x.fillStyle = right ? "#2b5278" : "#182533"; x.fill();
+    text(s, bx + 14, yy + 23, 15, C.text);
+    x.restore();
+  };
+  bubble("Did the build pass?", true, y0 + 50, outCubic(prog(t, 18.9, 19.2)));
+  const reply = typed("Yes! 42/42 green. Merged to main.", prog(t, 21.0, 21.85));
+  if (typing && t < 21.0) {
+    rr(CX + 14, y0 + 100, 62, 36, 14); x.fillStyle = "#182533"; x.fill();
+    for (let i = 0; i < 3; i++) dot(CX + 31 + i * 14, y0 + 118 - Math.max(0, Math.sin(t * 9 - i * 0.8)) * 4, 3.5, C.soft);
+  }
+  if (reply) bubble(reply, false, y0 + 100, 1);
+  if (t > 21.9) {
+    const c = outBack(prog(t, 21.9, 22.2));
+    x.save(); x.translate(CX + 14, y0 + 150); x.scale(c, c);
+    text("✓✓ delivered", 0, 18, 12.5, C.tg, { weight: 500 });
+    x.restore();
+  }
+  x.restore();
+}
+
+// ── Opening and closing titles ──────────────────────────────────────────────
+function intro(t) {
+  const k = span(t, 1.2, 4.1, 0.7, 0.5);
+  if (k <= 0) return;
+  x.save(); x.globalAlpha = k;
+  const r = (1 - outCubic(prog(t, 1.2, 2.0))) * 30;
+  text("Tute", 640, 500 + r, 92, C.text, { weight: 700, align: "center", spacing: -2 });
+  const r2 = (1 - outCubic(prog(t, 1.5, 2.3))) * 30;
+  x.globalAlpha = k * prog(t, 1.5, 2.2);
+  text("A little jelly that lives at the top of your screen.", 640, 552 + r2, 24, C.soft, { align: "center" });
+  x.restore();
+}
+
+function outro(t) {
+  const k = prog(t, 24.0, 24.7) * (1 - prog(t, 27.4, 28));
+  if (k <= 0) return;
+  x.save(); x.globalAlpha = k;
+  const r = (1 - outCubic(prog(t, 24.0, 24.8))) * 30;
+  text("Tute", 640, 478 + r, 84, C.text, { weight: 700, align: "center", spacing: -2 });
+  text("Your desk buddy for Windows.", 640, 524 + r, 23, C.soft, { align: "center" });
+  const pills = [["Claude Code", C.claude], ["Linear", C.linear], ["Obsidian", C.obsidian], ["Chat + memory", C.purple], ["Browsing", C.blue], ["Telegram soon", C.tg]];
+  x.font = `500 15px ${FONT}`;
+  const widths = pills.map(([l]) => x.measureText(l).width + 44);
+  const total = widths.reduce((a, b) => a + b, 0) + 12 * (pills.length - 1);
+  let px = 640 - total / 2;
+  pills.forEach(([l, c], i) => {
+    const p = outBack(prog(t, 24.6 + i * 0.1, 25.0 + i * 0.1));
+    x.save(); x.translate(px + widths[i] / 2, 580); x.scale(p, p);
+    chip(-widths[i] / 2, -16, l, c, clamp(p));
+    x.restore();
+    px += widths[i] + 12;
+  });
+  x.globalAlpha = k * prog(t, 25.5, 26.1);
+  text("Free and open source  ·  no telemetry  ·  made in code", 640, 650, 16, C.dim, { align: "center", spacing: 0.5 });
+  x.restore();
+}
+
+// ── A frame ─────────────────────────────────────────────────────────────────
+function frame(t) {
+  while (nextEvent < EVENTS.length && EVENTS[nextEvent][0] <= t) EVENTS[nextEvent++][1]();
+  jelly.update(1 / FPS);
+  x.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+  background(t);
+  caption(t, 4.6, 9.4, "CLAUDE CODE", C.claude, ["Watches your", "coding sessions."], "Every step, and a hop when it's done.");
+  caption(t, 9.5, 13.9, "CHAT", C.purple, ["Asks, browses,", "remembers."], "Your models. Your memory. On your PC.");
+  caption(t, 14.0, 18.4, "DROP", C.obsidian, ["Drop a file", "on the jelly."], "Save it to Obsidian, Linear, or ask about it.");
+  caption(t, 18.5, 22.9, "TELEGRAM · SOON", C.tg, ["Text it from", "your phone."], "It picks up, reads, and writes back.");
+  const ty = tile(t);
+  if (ty !== null) { claudeScene(t, ty); chatScene(t, ty); dropScene(t, ty); phoneScene(t, ty); }
+  drawJelly(t);
+  intro(t);
+  outro(t);
+  // Fade in from and out to the background, so the GIF loops cleanly.
+  const fade = Math.max(1 - prog(t, 0, 0.4), prog(t, LENGTH - 0.5, LENGTH));
+  if (fade > 0) { x.fillStyle = hexA(C.bg, fade); x.fillRect(0, 0, W, H); }
+}
+
+const note = document.getElementById("note");
+const total = LENGTH * FPS;
+if (new URLSearchParams(location.search).has("record")) {
+  for (let i = 0; i < total; i++) {
+    VT = i / FPS;
+    frame(VT);
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+    await fetch(`http://127.0.0.1:1431/frame/${i}`, { method: "POST", body: blob });
+    note.textContent = `recording ${i + 1}/${total}`;
+  }
+  note.textContent = "encoding…";
+  const r = await fetch("http://127.0.0.1:1431/done", { method: "POST" });
+  note.textContent = r.ok ? "done: docs/promo/tute.mp4 and tute.gif" : "encoding failed";
+} else {
+  // Preview: plays in real time (setTimeout, so it also runs in a hidden pane).
+  const start = Date.now();
+  const at = Number(new URLSearchParams(location.search).get("t") ?? 0);
+  let i = 0;
+  const step = () => {
+    const goal = Math.floor(((Date.now() - start) / 1000 + at) * FPS) % total;
+    if (goal < i) { location.reload(); return; }
+    while (i <= goal) { VT = i / FPS; frame(VT); i++; }
+    note.textContent = `${(VT).toFixed(1)}s`;
+    setTimeout(step, 1000 / FPS);
+  };
+  step();
+}
+</script>
+</body>
+</html>

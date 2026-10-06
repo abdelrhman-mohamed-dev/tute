@@ -77,7 +77,7 @@ fn endpoint(base: &str, path: &str) -> String {
 }
 
 fn key_for(provider: &Provider) -> Option<String> {
-    secrets::get(&provider.id)
+    secrets::read(secrets::Slot::Key(&provider.id))
 }
 
 fn require_key(provider: &Provider) -> Result<String, String> {
@@ -394,6 +394,130 @@ pub async fn test(provider: &Provider, model: &str) -> Result<TestResult, String
     let started = Instant::now();
     let reply = complete(provider, model, None, &[Turn { role: "user", text: TEST_PROMPT }]).await?;
     Ok(TestResult { reply, millis: started.elapsed().as_millis() as u64 })
+}
+
+// ── Tools (the browsing helper) ───────────────────────────────────────────────
+
+/// A tool the model may call. `schema` is the JSON Schema of its input.
+pub struct Tool {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub schema: Value,
+}
+
+/// The model asking for a tool.
+pub struct Call {
+    pub id: String,
+    pub name: String,
+    pub input: Value,
+}
+
+/// One reply in a tool-using conversation: what it said, and the tools it wants.
+pub struct Reply {
+    pub text: String,
+    pub calls: Vec<Call>,
+}
+
+/// How long the answer to a single tool step may be.
+const TOOL_MAX_TOKENS: u32 = 4096;
+
+/// One step of a conversation with tools. `messages` is kept in the
+
+/// provider's own format: it starts with `user_message`, and this adds the
+
+/// model's turn to it. Answer its calls with `tool_results` and step again.
+pub async fn tool_step(
+    provider: &Provider,
+    model: &str,
+    system: &str,
+    messages: &mut Vec<Value>,
+    tools: &[Tool],
+) -> Result<Reply, String> {
+    check_base_url(&provider.base_url)?;
+    match provider.kind {
+        ProviderKind::Anthropic => {
+            let body = json!({
+                "model": model,
+                "max_tokens": TOOL_MAX_TOKENS,
+                "system": system,
+                "messages": messages,
+                "tools": tools.iter().map(|t| json!({ "name": t.name, "description": t.description, "input_schema": t.schema })).collect::<Vec<_>>(),
+            });
+            let req = client()?
+                .post(endpoint(&provider.base_url, "v1/messages"))
+                .header("x-api-key", require_key(provider)?)
+                .header("anthropic-version", ANTHROPIC_VERSION)
+                .json(&body);
+            let value = send(req, provider).await?;
+            if value["stop_reason"] == "refusal" {
+                return Err("The model declined this request.".into());
+            }
+            let blocks = value["content"].as_array().cloned().unwrap_or_default();
+            let text = blocks.iter().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("");
+            let calls = blocks
+                .iter()
+                .filter(|b| b["type"] == "tool_use")
+                .map(|b| Call {
+                    id: b["id"].as_str().unwrap_or("").to_string(),
+                    name: b["name"].as_str().unwrap_or("").to_string(),
+                    input: b["input"].clone(),
+                })
+                .collect();
+            messages.push(json!({ "role": "assistant", "content": blocks }));
+            Ok(Reply { text: text.trim().to_string(), calls })
+        }
+        ProviderKind::OpenAi => {
+            let mut all = vec![json!({ "role": "system", "content": system })];
+            all.extend(messages.iter().cloned());
+            let body = json!({
+                "model": model,
+                "messages": all,
+                "tools": tools.iter().map(|t| json!({ "type": "function", "function": { "name": t.name, "description": t.description, "parameters": t.schema } })).collect::<Vec<_>>(),
+            });
+            let mut req = client()?.post(endpoint(&provider.base_url, "chat/completions")).json(&body);
+            if let Some(key) = key_for(provider) {
+                req = req.bearer_auth(key);
+            }
+            let value = send(req, provider).await?;
+            let message = value["choices"][0]["message"].clone();
+            let text = message["content"].as_str().unwrap_or("").trim().to_string();
+            let calls = message["tool_calls"]
+                .as_array()
+                .map(|list| {
+                    list.iter()
+                        .map(|c| Call {
+                            id: c["id"].as_str().unwrap_or("").to_string(),
+                            name: c["function"]["name"].as_str().unwrap_or("").to_string(),
+                            // Arguments come as a JSON string.
+                            input: c["function"]["arguments"].as_str().and_then(|a| serde_json::from_str(a).ok()).unwrap_or(Value::Null),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            messages.push(message);
+            Ok(Reply { text, calls })
+        }
+    }
+}
+
+/// The first message of a tool conversation.
+pub fn user_message(text: &str) -> Value {
+    json!({ "role": "user", "content": text })
+}
+
+/// Answers the model's tool calls: (call id, what came back).
+pub fn tool_results(provider: &Provider, messages: &mut Vec<Value>, results: Vec<(String, String)>) {
+    match provider.kind {
+        ProviderKind::Anthropic => messages.push(json!({
+            "role": "user",
+            "content": results.into_iter().map(|(id, text)| json!({ "type": "tool_result", "tool_use_id": id, "content": text })).collect::<Vec<_>>(),
+        })),
+        ProviderKind::OpenAi => {
+            for (id, text) in results {
+                messages.push(json!({ "role": "tool", "tool_call_id": id, "content": text }));
+            }
+        }
+    }
 }
 
 // ── HTTP plumbing ─────────────────────────────────────────────────────────────

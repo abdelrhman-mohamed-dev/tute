@@ -52,6 +52,8 @@ export function buildUploading(): ViewHost {
 /** "<name> is ready." with Keep it / Cancel. */
 export function buildChoose(actions: ViewActions): ViewHost {
   const name = h("b");
+  // With a vault, the file can go straight into it.
+  const toObsidian = button("Save to Obsidian", "primary", () => actions.saveToObsidian());
   return {
     el: h(
       "div",
@@ -66,7 +68,8 @@ export function buildChoose(actions: ViewActions): ViewHost {
           h(
             "div",
             { class: "actions" },
-            button("Keep it", "primary", () => actions.keepFile()),
+            toObsidian,
+            button("Keep it", "secondary", () => actions.keepFile()),
             button("Cancel", "secondary", () => actions.cancelFile()),
           ),
         ),
@@ -74,6 +77,7 @@ export function buildChoose(actions: ViewActions): ViewHost {
     ),
     sync() {
       name.textContent = State.droppedFile?.name ?? "The file";
+      toObsidian.hidden = !State.settings.obsidianVault;
     },
   };
 }

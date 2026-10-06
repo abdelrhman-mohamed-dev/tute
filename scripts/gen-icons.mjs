@@ -53,8 +53,8 @@ const inEllipse = (x, y, cx, cy, rx, ry, rot = 0) => {
 
 /** Coverage of the rounded tile at (x, y): 1 inside, 0 outside. */
 function inTile(x, y, size) {
-  const m = size * 0.04; // margin
-  const r = size * 0.24; // corner radius
+  const m = size * 0.16; // room around the tile, like other apps leave
+  const r = size * 0.17; // corner radius
   const lo = m + r, hi = size - m - r;
   const dx = Math.max(lo - x, 0, x - hi);
   const dy = Math.max(lo - y, 0, y - hi);
@@ -63,7 +63,7 @@ function inTile(x, y, size) {
 
 function renderTute(size) {
   const px = new Uint8Array(size * size * 4);
-  const R = size * 0.34;
+  const R = size * 0.235;
   const cx = size / 2;
   const cy = size / 2 + R * 0.12;
   const rim = Math.max(R * 0.06, 0.6);

@@ -3,7 +3,7 @@
 // inbox runs in the background, a tick plays every tenth of the way, and the
 // "Keep it / Cancel" card follows.
 
-import { Bridge } from "../core/bridge";
+import { Bridge, ObsidianBridge } from "../core/bridge";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
 import type { IslandViewName } from "../core/layout";
@@ -155,6 +155,22 @@ export class DropFlow {
     this.host.note(`${State.droppedFile?.name ?? "The file"} is saved in AppData\\Local\\Tute\\inbox.`, 2400);
     // Back on screen: a run of drops gets its celebration now.
     window.setTimeout(() => this.host.play.celebrateStreak(), 350);
+  }
+
+  /** "Save to Obsidian": into the vault's attachments, linked in today's note. */
+  toObsidian() {
+    const file = State.droppedFile;
+    if (!file) return;
+    ObsidianBridge.saveFile(file.path)
+      .then(() => {
+        Sound.play("approve");
+        this.host.note(`${file.name} is in your vault, linked in today's note.`, 2600);
+        window.setTimeout(() => this.host.play.celebrateStreak(), 350);
+      })
+      .catch((err) => {
+        Sound.play("error");
+        this.host.note(String(err).replace(/^Error:\s*/, ""), 3200);
+      });
   }
 
   /** "Cancel": as if it was never dropped. Deletes our copy, never the original. */

@@ -233,18 +233,109 @@
 .pill-badge.finished { --badge: var(--ok); }
 .pill-badge.error { --badge: var(--danger); }
 
-/* ── Nothing running: a hello and the quick actions, buttons on the right ── */
+/* ── Nothing running: a calm line, the ask bar, one row of shortcuts ── */
 
 .stack.home {
-  flex-direction: row;
-  align-items: center;
-  gap: 16px;
-  padding-right: 18px !important;
+  gap: 9px;
+  padding-right: 20px !important;
 }
 
-.home-text {
+.home-head {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  align-items: baseline;
+  gap: 9px;
   min-width: 0;
+  white-space: nowrap;
+}
+
+.home-head .title {
+  font-size: 14.5px;
+}
+
+.home-head .sub {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+/* Looks like a text field; opens the chat with its real one. */
+.ask-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 38px;
+  padding: 0 6px 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--bead);
+  background: var(--well);
+  color: var(--text-faint);
+  font: 400 13px var(--font);
+  text-align: left;
+  transition: background var(--quick), border-color var(--quick);
+}
+
+.ask-bar:hover {
+  border-color: var(--tint-3);
+  background: var(--tint-1);
+  color: var(--text-dim);
+}
+
+.ask-send {
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  border-radius: var(--drop);
+  background: var(--jelly);
+  color: var(--on-accent);
+  transition: transform 0.2s var(--pop);
+}
+
+.ask-bar:hover .ask-send {
+  transform: translateY(-1px) scale(1.06);
+}
+
+/* All shortcuts look alike: a coloured dot, a name, sometimes a count. */
+.shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px 0 9px;
+  border-radius: var(--bead-sm);
+  background: var(--tint-1);
+  color: var(--text);
+  font: 500 11.5px var(--font);
+  white-space: nowrap;
+  transition: background var(--quick), transform 0.08s ease-out;
+}
+
+.shortcut:hover {
+  background: var(--tint-2);
+}
+
+.shortcut:active {
+  transform: scale(0.96);
+}
+
+.shortcut .count {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.shortcut .count:empty {
+  display: none;
+}
+
+/* Watch / Stop beside a browsing task's name. */
+.task-act {
+  margin-left: 8px;
+  color: var(--text-dim);
+}
+
+.task-act:hover {
+  color: var(--text);
 }

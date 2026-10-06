@@ -6,7 +6,9 @@
 // The listener only answers POST /hook carrying Tute's own token header. A web
 // page can't add that header without a CORS preflight, which is refused, and
 // any request with an Origin header is refused outright — so no website can
-// fake a session.
+// fake a session. The one exception is Tute's browser extension (browser.rs):
+// its /browser/* requests carry the token and a chrome-extension:// origin,
+// which a website can't claim.
 
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
@@ -163,6 +165,11 @@ fn respond_json(mut stream: &TcpStream, status: &str, body: &str) {
     let _ = stream.write_all(reply.as_bytes());
 }
 
+/// Nothing to say (the extension's "no work right now").
+fn respond_empty(mut stream: &TcpStream) {
+    let _ = stream.write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n");
+}
+
 fn respond_html(mut stream: &TcpStream, body: &str) {
     let reply = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\
@@ -198,7 +205,8 @@ fn handle(stream: TcpStream, app: &AppHandle, token: &str) -> Result<(), String>
     let method = parts.next().unwrap_or("").to_string();
     let path = parts.next().unwrap_or("").to_string();
 
-    let (mut len, mut token_ok, mut has_origin) = (0usize, false, false);
+    let (mut len, mut token_ok) = (0usize, false);
+    let mut origin: Option<String> = None;
     loop {
         let mut line = String::new();
         let n = reader.read_line(&mut line).map_err(|e| e.to_string())?;
@@ -210,7 +218,7 @@ fn handle(stream: TcpStream, app: &AppHandle, token: &str) -> Result<(), String>
             match key.trim().to_ascii_lowercase().as_str() {
                 "content-length" => len = value.parse().unwrap_or(usize::MAX),
                 TOKEN_HEADER => token_ok = value == token,
-                "origin" => has_origin = true,
+                "origin" => origin = Some(value.to_string()),
                 _ => {}
             }
         }
@@ -228,8 +236,30 @@ fn handle(stream: TcpStream, app: &AppHandle, token: &str) -> Result<(), String>
         }
     }
 
+    // Tute's browser extension (browser.rs). Its requests come from a
+    // chrome-extension:// origin, which no website can claim, and carry the token.
+    let from_extension = origin.as_deref().is_some_and(|o| o.starts_with("chrome-extension://"));
+    if token_ok && (origin.is_none() || from_extension) {
+        if method == "GET" && path == crate::browser::NEXT_PATH {
+            match crate::browser::next_command() {
+                Some(command) => respond_json(&stream, "200 OK", &command.to_string()),
+                None => respond_empty(&stream),
+            }
+            return Ok(());
+        }
+        if method == "POST" && path == crate::browser::RESULT_PATH && len <= MAX_BODY {
+            let mut body = vec![0u8; len];
+            reader.read_exact(&mut body).map_err(|e| e.to_string())?;
+            if let Ok(result) = serde_json::from_slice::<Value>(&body) {
+                crate::browser::deliver(&result);
+            }
+            respond(&stream, "200 OK");
+            return Ok(());
+        }
+    }
+
     let known_path = path == HOOK_PATH || path == ASK_PATH;
-    if method != "POST" || !known_path || !token_ok || has_origin || len > MAX_BODY {
+    if method != "POST" || !known_path || !token_ok || origin.is_some() || len > MAX_BODY {
         respond(&stream, "403 Forbidden");
         return Err(format!("refused {method} {path}"));
     }
